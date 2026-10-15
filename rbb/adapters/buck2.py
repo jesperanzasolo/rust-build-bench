@@ -231,6 +231,8 @@ class Buck2Adapter(Adapter):
         # contents and its own (in-memory and remote) caches, not from a git base.
         r = self.ctx.run(self.test_argv(), scenario=scenario, step=step, env=self.env())
         text = Path(r.log_path).read_text(errors="replace") if r.log_path else ""
+        # measure.run appends to the step log; parse only this invocation's section.
+        text = text[text.rfind("\n$ (cd "):]
         counts = parse_test_summary(text)
         return TestRun(commands=[r], counts=counts, cache=parse_action_stats(text))
 

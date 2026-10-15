@@ -63,6 +63,7 @@ def summarize(recs: list[dict]) -> dict:
                 "failures": sum(1 for r in st if r["exit_code"] != 0),
                 "skipped": sum(1 for r in st if r.get("skipped")),
                 "sync_total_s": round(sum(r.get("sync_s") or 0 for r in st), 1),
+                "post_merge_total_s": round(sum((r.get("counts") or {}).get("post_merge_s") or 0 for r in st), 1),
             }
         verdicts = [r for r in rs if r["scenario"] == "canary" and r["step"].endswith(":verdict")]
         s["canary"] = {r["step"].split(":")[0]: r["canary"]["reason"] for r in verdicts}
@@ -170,12 +171,13 @@ def render(summary: dict, decision: dict, run_dir: Path) -> str:
             L.append(f"| `{t}` | {_fmt(s['cold_s'])} | {_fmt(s['noop_s'])} | "
                      f"{_fmt(f['median_s'])} / {_fmt(f['p90_s'])} / {_fmt(f['total_s'])} | "
                      f"{_fmt(w['median_s'])} / {_fmt(w['total_s'])} | {canary} | {_fmt(s['state_bytes_max'], 'b')} |")
-        L += ["", "| Tool | Fresh CPU total (s) | Warm CPU total (s) | Failed steps (fresh/warm) | Config sync total (s) |",
-              "|---|---|---|---|---|"]
+        L += ["", "| Tool | Fresh CPU total (s) | Warm CPU total (s) | Failed steps (fresh/warm) | Config sync total (s) | Post-merge work, fresh (s) |",
+              "|---|---|---|---|---|---|"]
         for t, s in sorted(tools.items()):
             f, w = s["replay_fresh"], s["replay_warm"]
             L.append(f"| `{t}` | {_fmt(f['cpu_total_s'])} | {_fmt(w['cpu_total_s'])} | "
-                     f"{f['failures']}/{w['failures']} | {_fmt(f['sync_total_s'] + w['sync_total_s'])} |")
+                     f"{f['failures']}/{w['failures']} | {_fmt(f['sync_total_s'] + w['sync_total_s'])} | "
+                     f"{_fmt(f['post_merge_total_s']) if f['post_merge_total_s'] else '-'} |")
         L.append("")
     L += ["Raw per-step records: `**/results.jsonl`. Provenance: `**/provenance.json`.", ""]
     return "\n".join(L)

@@ -539,6 +539,29 @@ vendor/*/.travis.yml
 """
 
 
+def _crate_src_dirs(crate_dir: Path, manifest: Path) -> tuple[str, ...]:
+    """Directories (crate-relative, with trailing "/") holding a target's crate root."""
+    try:
+        man = tomllib.loads(manifest.read_text(errors="replace"))
+    except tomllib.TOMLDecodeError:
+        return ("src/",)
+    roots = []
+    lib = man.get("lib") or {}
+    roots.append(lib.get("path", "src/lib.rs"))
+    for b in man.get("bin", []) or []:
+        roots.append(b.get("path", f"src/bin/{b.get('name', '')}.rs"))
+    build = (man.get("package") or {}).get("build")
+    if isinstance(build, str):
+        roots.append(build)
+    elif build is not False and (crate_dir / "build.rs").exists():
+        roots.append("build.rs")
+    out = set()
+    for r in roots:
+        d = os.path.dirname(r.replace(os.sep, "/"))
+        out.add("" if d in ("", ".") else d + "/")
+    return tuple(sorted(out))
+
+
 def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
     """{package name: [manifest-relative files]} that vendored crates read with include*!
     and that `**/*.rs` under the crate root's directory does not already cover."""
@@ -554,6 +577,7 @@ def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
         except (tomllib.TOMLDecodeError, KeyError, TypeError):
             continue
         root = crate_dir.resolve()
+        src_dirs = _crate_src_dirs(crate_dir, man)
         for dirpath, dirs, files in os.walk(root):
             dirs.sort()
             for fn in sorted(files):
@@ -572,7 +596,9 @@ def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
                         rel = str(tgt.relative_to(root)).replace(os.sep, "/")
                     except ValueError:
                         continue
-                    if tgt.is_file() and not rel.endswith(".rs"):
+                    # `**/*.rs` under the crate root's directory (Reindeer's default
+                    # srcs) already covers .rs files there; anything else is extra.
+                    if tgt.is_file() and not (rel.endswith(".rs") and rel.startswith(src_dirs)):
                         out.setdefault(name, set()).add(rel)
     return {k: sorted(v) for k, v in sorted(out.items())}
 

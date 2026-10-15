@@ -329,6 +329,17 @@ def _in_package_includes(ws: Workspace, pkg: Package) -> list[str]:
     return sorted(out)
 
 
+_MOD_RE = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;", re.M)
+
+
+def _mod_decls(path: Path) -> set[str]:
+    """Names of out-of-line modules (`mod x;`) a Rust file declares."""
+    try:
+        return set(_MOD_RE.findall(path.read_text(errors="replace")))
+    except OSError:
+        return set()
+
+
 def _fg_name(repo_path: str) -> str:
     return "rbb_include_" + re.sub(r"[^A-Za-z0-9_]+", "_", repo_path).strip("_")
 
@@ -406,8 +417,6 @@ def bazelrc(*, output_user_root: str, repository_cache: str, remote_cache: str |
         "",
         "# Cache keys must not depend on the caller's PATH or other env.",
         "build --incompatible_strict_action_env",
-        "# Same rmeta pipelining Cargo does by default.",
-        "build --@rules_rust//rust/settings:pipelined_compilation=True",
         "build --keep_going",
     ]
     if remote_cache:
@@ -427,28 +436,42 @@ def bazelrc(*, output_user_root: str, repository_cache: str, remote_cache: str |
 
 def launcher_script() -> str:
     return "#!/usr/bin/env bash\n" + HEADER + """#
-# `--run_under` launcher for every rust_test. Reproduces how Cargo runs a test binary:
-#   * the working directory is the package directory ($CARGO_MANIFEST_DIR);
-#   * CARGO_MANIFEST_DIR and CARGO_BIN_EXE_* are absolute paths.
-# rules_rust sets CARGO_MANIFEST_DIR (and our BUILD files set CARGO_BIN_EXE_*) relative
-# to the runfiles root, which is Bazel's working directory for tests.
+# `--run_under` launcher for every rust_test. Reproduces how Cargo runs a test binary,
+# so that the same tests pass under both tools:
+#   * the working directory is the package directory and CARGO_MANIFEST_DIR is its
+#     absolute path (rules_rust sets it relative to the runfiles root);
+#   * files are regular files, not symlinks: Bazel's runfiles tree is a forest of
+#     symlinks, which directory walkers that do not follow links (walkdir defaults,
+#     datatest-stable) skip. The declared runfiles are mirrored into $TEST_TMPDIR as
+#     hard links (a copy if hard links are impossible). Only declared data is mirrored,
+#     so the test still cannot see undeclared files.
+#   * CARGO_BIN_EXE_<bin> is absolute (BUILD files set it runfiles-relative);
+#   * INSTA_WORKSPACE_ROOT (insta's documented override) replaces the `cargo metadata`
+#     call insta would otherwise make to find the workspace root.
 set -euo pipefail
-root="$PWD"
+runfiles="$PWD"
 exe="$1"
 shift
-case "$exe" in /*) ;; *) exe="$root/$exe" ;; esac
-# insta's documented override for snapshot lookup (it would run `cargo metadata`).
+case "$exe" in /*) ;; *) exe="$runfiles/$exe" ;; esac
+root="${TEST_TMPDIR:-${TMPDIR:-/tmp}}/rbb_root"
+rm -rf "$root"
+mkdir -p "$root"
+if ! cp -RL --link -- "$runfiles/." "$root/" 2>/dev/null; then
+  rm -rf "$root"
+  mkdir -p "$root"
+  cp -RL -- "$runfiles/." "$root/"
+fi
 export INSTA_WORKSPACE_ROOT="$root"
 while IFS='=' read -r name _; do
   case "$name" in
     CARGO_BIN_EXE_*)
       val="${!name}"
-      case "$val" in /*) ;; *) export "$name=$root/$val" ;; esac ;;
+      case "$val" in /*) ;; *) export "$name=$runfiles/$val" ;; esac ;;
   esac
 done < <(env)
 dir="${CARGO_MANIFEST_DIR:-}"
 case "$dir" in
-  "") export CARGO_MANIFEST_DIR="$root" ;;
+  ""|.) export CARGO_MANIFEST_DIR="$root" ;;
   /*) ;;
   *) export CARGO_MANIFEST_DIR="$root/$dir" ;;
 esac
@@ -738,9 +761,17 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
                 continue
             root = it_roots[t.name]
             if root.startswith("tests/"):
+                # Each integration test gets the files under tests/ except other test
+                # roots, unless this root declares them as modules (`mod x;`): a file
+                # can be both its own test target and a module of another.
+                used = _mod_decls(ws.root / pkg.dir / root)
                 excl = []
                 for other, oroot in it_roots.items():
                     if other == t.name or not oroot.startswith("tests/"):
+                        continue
+                    stem = posixpath.basename(posixpath.dirname(oroot)) \
+                        if posixpath.basename(oroot) == "main.rs" else posixpath.splitext(posixpath.basename(oroot))[0]
+                    if posixpath.dirname(root) == "tests" and stem in used:
                         continue
                     if posixpath.basename(oroot) == "main.rs" and oroot.count("/") >= 2:
                         excl.append(posixpath.dirname(oroot) + "/**")

@@ -1,0 +1,109 @@
+{
+ "decision": {
+  "overall": "inconclusive",
+  "per_corpus": {
+   "ruff": {
+    "ineligible": {
+     "moon": "canary failed: warm-K1=clean, warm-K2=failed-without-canary-output, warm-K3=clean, fresh-K2=failed-without-canary-output"
+    },
+    "reason": "no eligible Cargo-native tool",
+    "verdict": "inconclusive"
+   },
+   "rust-analyzer": {
+    "ineligible": {
+     "moon": "canary failed: "
+    },
+    "reason": "no eligible Cargo-native tool",
+    "verdict": "inconclusive"
+   }
+  }
+ },
+ "summary": {
+  "ruff": {
+   "moon": {
+    "all_steps_clean": false,
+    "canary": {
+     "fresh-K2": "failed-without-canary-output",
+     "warm-K1": "clean",
+     "warm-K2": "failed-without-canary-output",
+     "warm-K3": "clean"
+    },
+    "canary_ok": false,
+    "cold_counts": {},
+    "cold_exit": 1,
+    "cold_s": 1.876,
+    "coverage": null,
+    "failed_steps": 20,
+    "family": "cargo-native",
+    "noop_s": 0.115,
+    "replay_fresh": {
+     "cpu_total_s": 1.3,
+     "failures": 5,
+     "median_s": 0.221,
+     "n": 5,
+     "p90_s": 0.265,
+     "post_merge_total_s": 0,
+     "skipped": 0,
+     "sync_total_s": 1.4,
+     "total_s": 1.1
+    },
+    "replay_warm": {
+     "cpu_total_s": 2.1,
+     "failures": 10,
+     "median_s": 0.1395,
+     "n": 10,
+     "p90_s": 0.165,
+     "post_merge_total_s": 0,
+     "skipped": 0,
+     "sync_total_s": 2.6,
+     "total_s": 1.5
+    },
+    "state_bytes_max": 14115
+   }
+  },
+  "rust-analyzer": {
+   "moon": {
+    "all_steps_clean": false,
+    "canary": {},
+    "canary_ok": false,
+    "cold_counts": {
+     "executed": 8409,
+     "failed": 12,
+     "moon_tasks": {},
+     "passed": 8397,
+     "skipped": 12,
+     "unit": "test"
+    },
+    "cold_exit": 1,
+    "cold_s": 280.509,
+    "coverage": null,
+    "failed_steps": 11,
+    "family": "cargo-native",
+    "noop_s": 0.316,
+    "replay_fresh": {
+     "cpu_total_s": null,
+     "failures": 0,
+     "median_s": null,
+     "n": 0,
+     "p90_s": null,
+     "post_merge_total_s": 0,
+     "skipped": 0,
+     "sync_total_s": 0,
+     "total_s": null
+    },
+    "replay_warm": {
+     "cpu_total_s": 4529.2,
+     "failures": 10,
+     "median_s": 159.1915,
+     "n": 10,
+     "p90_s": 237.554,
+     "post_merge_total_s": 0,
+     "skipped": 0,
+     "sync_total_s": 1.9,
+     "total_s": 1365.7
+    },
+    "state_bytes_max": 16585968338
+   }
+  }
+ }
+}

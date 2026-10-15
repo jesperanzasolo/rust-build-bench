@@ -525,12 +525,84 @@ def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
     return {k: sorted(v) for k, v in sorted(out.items())}
 
 
+_VER = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
+
+
+def _req_is_broad(req: str) -> bool:
+    """Does a Cargo version requirement span more than one semver-compatible lane?
+    (Reindeer's deterministic resolver widens such requirements to the newest lane.)"""
+    req = req.strip()
+    if req in ("", "*"):
+        return True
+    if "," not in req:
+        return req.lstrip().startswith((">", "*")) or req.rstrip().endswith("*")
+    lo = hi = None
+    for part in req.split(","):
+        part = part.strip()
+        m = re.match(r"(>=|>|<=|<|=|\^|~)?\s*(.*)", part)
+        op, ver = m.group(1) or "^", m.group(2)
+        v = _VER.match(ver)
+        if not v:
+            return True
+        nums = tuple(int(x) if x is not None else 0 for x in v.groups())
+        if op in (">=", ">"):
+            lo = nums
+        elif op in ("<", "<="):
+            hi = nums
+        else:
+            return False
+    if lo is None or hi is None:
+        return True
+    lane = lambda t: (t[0],) if t[0] else (0, t[1]) if t[1] else (0, 0, t[2])  # noqa: E731
+    top = list(hi)
+    if hi[1:] == (0, 0) and hi[0] > 0:
+        top = [hi[0] - 1, 0, 0]
+    elif hi[0] == 0 and hi[2] == 0 and hi[1] > 0:
+        top = [0, hi[1] - 1, 0]
+    return lane(lo) != lane(tuple(top))
+
+
+def _lane(version: str) -> str:
+    if "-" in version:
+        return "=" + version
+    nums = [int(x) for x in version.split("+", 1)[0].split(".")]
+    if nums[0]:
+        return f"^{nums[0]}"
+    if nums[1]:
+        return f"^0.{nums[1]}"
+    return f"^0.0.{nums[2]}"
+
+
+def resolver_narrowing(an: Analysis) -> dict[str, dict[str, dict[str, str]]]:
+    """{parent package: {parent version: {dependency name in its Cargo.toml: narrow_to}}}
+    pinning every broad registry requirement to the compatibility lane Cargo.lock chose,
+    so Reindeer's resolver lands on the same versions as Cargo."""
+    nodes = {n["id"]: n for n in (an.ws.raw.get("resolve") or {}).get("nodes", [])}
+    out: dict[str, dict[str, dict[str, str]]] = {}
+    for p in an.ws.raw["packages"]:
+        resolved = [an.by_id[d["pkg"]] for d in nodes.get(p["id"], {}).get("deps", [])
+                    if d["pkg"] in an.by_id]
+        for dep in p.get("dependencies", []):
+            if dep.get("kind") == "dev" or dep.get("path") or not _req_is_broad(dep.get("req", "")):
+                continue
+            if dep.get("source") and not str(dep["source"]).startswith(("registry+", "sparse+")):
+                continue
+            cands = [r for r in resolved if r["name"] == dep["name"]]
+            if not cands:
+                continue
+            versions = sorted({r["version"] for r in cands})
+            key = dep.get("rename") or dep["name"]
+            out.setdefault(p["name"], {}).setdefault(p["version"], {})[key] = _lane(versions[-1])
+    return {k: dict(sorted(v.items())) for k, v in sorted(out.items())}
+
+
 def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
                        extra_srcs: dict[str, list[str]] | None = None) -> dict[str, str]:
     """fixups/<crate>/fixups.toml for third-party crates that have a build script (run it,
     the generic best-effort choice), a Cargo profile override, or files read by include*!
     (from `scan_vendor_includes`)."""
     extra_srcs = extra_srcs or {}
+    narrowing = resolver_narrowing(an)
     member_ids = set(an.member_ids.values())
     tp_pkgs: dict[str, list[dict]] = {}
     for p in an.ws.raw["packages"]:
@@ -544,7 +616,8 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
         links = any(p.get("links") for p in versions)
         flags = package_flags.get(name)
         extra = extra_srcs.get(name)
-        if not has_bs and not flags and not extra:
+        narrow = narrowing.get(name, {})
+        if not has_bs and not flags and not extra and not narrow:
             continue
         lines = [HEADER]
         if extra:
@@ -558,6 +631,21 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
                           "[buildscript.run]", "rustc_link_lib = true", "rustc_link_search = true"]
             else:
                 lines += ["buildscript.run = true"]
+        if narrow:
+            # Reindeer's deterministic resolver picks the newest compatibility lane of a
+            # broad requirement (">=0.6, <0.8"); pin it to the lane Cargo.lock chose.
+            # Unconditional when every version of this crate agrees, else per version
+            # (`cfg(version = ...)` sections may carry resolver fixups).
+            lines += ["", "# Broad requirements, narrowed to the lane Cargo.lock resolved."]
+            per_version = [narrow.get(p["version"], {}) for p in versions]
+            if all(m == per_version[0] for m in per_version):
+                for dep, req in per_version[0].items():
+                    lines += [f"[resolver.dependencies.{_tstr(dep)}]", f"narrow_to = {_tstr(req)}"]
+            else:
+                for ver in sorted(narrow):
+                    for dep, req in narrow[ver].items():
+                        lines += [f"['cfg(version = \"={ver}\")'.resolver.dependencies.{_tstr(dep)}]",
+                                  f"narrow_to = {_tstr(req)}"]
         out[f"{THIRD_PARTY}/fixups/{name}/fixups.toml"] = "\n".join(lines) + "\n"
     return out
 

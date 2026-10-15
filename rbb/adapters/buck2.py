@@ -131,7 +131,7 @@ class Buck2Adapter(Adapter):
             state = {}
         manifest = files[f"{gen.THIRD_PARTY}/Cargo.toml"]
         fixups = "".join(f"{p}\n{t}" for p, t in sorted(files.items()) if "/fixups/" in p)
-        tp_hash = hashlib.sha256((manifest + files[f"{gen.THIRD_PARTY}/reindeer.toml"]
+        tp_hash = hashlib.sha256((manifest + files[f"{gen.THIRD_PARTY}/reindeer.toml"] + files[f"{gen.THIRD_PARTY}/.gitignore"]
                                   + fixups + rust_version).encode()).hexdigest()
 
         # Remove BUCK files generated for a previous commit that no longer apply.
@@ -168,7 +168,7 @@ class Buck2Adapter(Adapter):
                     if not p.exists() or p.read_text() != text:
                         p.write_text(text)
             fixups = "".join(f"{p}\n{t}" for p, t in sorted(files.items()) if "/fixups/" in p)
-            tp_hash = hashlib.sha256((manifest + files[f"{gen.THIRD_PARTY}/reindeer.toml"]
+            tp_hash = hashlib.sha256((manifest + files[f"{gen.THIRD_PARTY}/reindeer.toml"] + files[f"{gen.THIRD_PARTY}/.gitignore"]
                                       + fixups + rust_version).encode()).hexdigest()
             r = ctx.run(reindeer + ["buckify"], scenario="sync", step="reindeer-buckify", env=self.env())
             if not r.ok:

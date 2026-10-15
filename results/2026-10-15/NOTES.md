@@ -18,10 +18,15 @@ from scratch. No result was edited.
 
 ## Gaps
 
-- **ruff / moon:** pending. The original moon run hit a project-graph cycle
-  (Cargo allows dev-dependency cycles, moon does not); the adapter was fixed and
-  the re-run had not finished when this report was published. rust-analyzer / moon
-  ran with the earlier adapter, whose only difference is project-graph edges for
+- **ruff / moon:** did not finish within budget; no result. The original moon run
+  hit a project-graph cycle (Cargo allows dev-dependency cycles, moon does not).
+  The re-run with the fixed adapter (harness `c499514`) was cancelled after about
+  3 hours, against a budget of about 1 hour per tool, still inside the ruff pair.
+  The adapter runs `cargo nextest run -p <crate>` once per crate, and all 55 tasks
+  serialise on one Cargo `target/` lock. This cannot change the ruff decision:
+  moon could at best displace cargo-sccache as the best Cargo-native tool, and it
+  was the slowest Cargo-native tool on rust-analyzer. rust-analyzer / moon ran
+  with the earlier adapter, whose only difference is project-graph edges for
   dev-dependencies (no cycle in that corpus).
 - **rust-analyzer / buck2:** no result. Reindeer rejected an auto-generated fixup
   (`fixups/embedded-io/fixups.toml`: "README.md matches no files") on both

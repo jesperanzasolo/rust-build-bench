@@ -1,0 +1,129 @@
+{
+ "decision": {
+  "overall": "use",
+  "per_corpus": {
+   "ruff": {
+    "best_cargo_native": "cargo-rail",
+    "best_cargo_native_fresh_total_s": 1045.7,
+    "ineligible": {},
+    "reason": "No eligible hermetic tool to compare against.",
+    "verdict": "use"
+   },
+   "rust-analyzer": {
+    "best_cargo_native": "cargo-rail",
+    "best_cargo_native_fresh_total_s": 522.4,
+    "ineligible": {},
+    "reason": "No eligible hermetic tool to compare against.",
+    "verdict": "use"
+   }
+  }
+ },
+ "summary": {
+  "ruff": {
+   "cargo-rail": {
+    "all_steps_clean": true,
+    "canary": {
+     "fresh-K2": "detected",
+     "warm-K1": "clean",
+     "warm-K2": "detected",
+     "warm-K3": "clean"
+    },
+    "canary_ok": true,
+    "cold_counts": {
+     "executed": 9516,
+     "failed": 0,
+     "passed": 9516,
+     "plan": {
+      "mode": "all"
+     },
+     "post_merge_ok": true,
+     "post_merge_s": 2.821,
+     "skipped": 44,
+     "unit": "test"
+    },
+    "cold_exit": 0,
+    "cold_s": 366.558,
+    "coverage": null,
+    "failed_steps": 0,
+    "family": "cargo-native",
+    "noop_s": 1.417,
+    "replay_fresh": {
+     "cpu_total_s": 6597.7,
+     "failures": 0,
+     "median_s": 244.764,
+     "n": 5,
+     "p90_s": 296.52,
+     "post_merge_total_s": 9.5,
+     "skipped": 1,
+     "sync_total_s": 0,
+     "total_s": 1045.7
+    },
+    "replay_warm": {
+     "cpu_total_s": 11805.3,
+     "failures": 0,
+     "median_s": 224.91500000000002,
+     "n": 10,
+     "p90_s": 268.738,
+     "post_merge_total_s": 15.0,
+     "skipped": 1,
+     "sync_total_s": 0,
+     "total_s": 2056.6
+    },
+    "state_bytes_max": 16595578150
+   }
+  },
+  "rust-analyzer": {
+   "cargo-rail": {
+    "all_steps_clean": false,
+    "canary": {
+     "fresh-K2": "detected",
+     "warm-K1": "clean",
+     "warm-K2": "detected",
+     "warm-K3": "clean"
+    },
+    "canary_ok": true,
+    "cold_counts": {
+     "executed": 8227,
+     "failed": 6,
+     "passed": 8221,
+     "plan": {
+      "mode": "all"
+     },
+     "post_merge_ok": true,
+     "post_merge_s": 0.916,
+     "skipped": 10,
+     "unit": "test"
+    },
+    "cold_exit": 100,
+    "cold_s": 144.998,
+    "coverage": null,
+    "failed_steps": 17,
+    "family": "cargo-native",
+    "noop_s": 0.666,
+    "replay_fresh": {
+     "cpu_total_s": 2385.6,
+     "failures": 5,
+     "median_s": 126.189,
+     "n": 5,
+     "p90_s": 140.358,
+     "post_merge_total_s": 314.2,
+     "skipped": 0,
+     "sync_total_s": 0,
+     "total_s": 522.4
+    },
+    "replay_warm": {
+     "cpu_total_s": 3780.1,
+     "failures": 10,
+     "median_s": 94.5995,
+     "n": 10,
+     "p90_s": 117.965,
+     "post_merge_total_s": 418.9,
+     "skipped": 0,
+     "sync_total_s": 0,
+     "total_s": 809.9
+    },
+    "state_bytes_max": 22282622116
+   }
+  }
+ }
+}

@@ -96,5 +96,16 @@ class DecisionTest(unittest.TestCase):
         self.assertIn("bazel", d["per_corpus"]["c"]["ineligible"])
 
 
+class MeasureTest(unittest.TestCase):
+    def test_run_measures_and_logs(self):
+        from rbb.measure import run
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "x.log"
+            r = run(["sh", "-c", "echo hello; exit 3"], cwd=td, log_path=log)
+            self.assertEqual(r.exit_code, 3)
+            self.assertIn("hello", log.read_text())
+            self.assertIsNotNone(r.wall_s)
+
+
 if __name__ == "__main__":
     unittest.main()

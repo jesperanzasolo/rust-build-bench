@@ -51,17 +51,17 @@ class _MemSampler(threading.Thread):
         self.interval = interval
         self.peak = 0
         self.baseline = _mem_used_bytes() or 0
-        self._stop = threading.Event()
+        self._halt = threading.Event()
 
     def run(self) -> None:
-        while not self._stop.is_set():
+        while not self._halt.is_set():
             used = _mem_used_bytes()
             if used is not None and used > self.peak:
                 self.peak = used
-            self._stop.wait(self.interval)
+            self._halt.wait(self.interval)
 
     def stop(self) -> int:
-        self._stop.set()
+        self._halt.set()
         self.join(timeout=2)
         return max(0, self.peak - self.baseline)
 

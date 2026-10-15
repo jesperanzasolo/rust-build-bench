@@ -60,7 +60,7 @@ Run in this order for each (corpus, tool) on a dedicated machine:
    tool's change-based test command for the previous commit to this one. A sticky CI
    runner or a developer machine.
 4. **replay-fresh** (headline metric): shared caches reset, then seeded by one
-   untimed build of the commit before the measured range. For each of the last 10
+   untimed build of the commit before the measured range. For each of the last 5
    commits: delete all local state, check out, run. Each run fills the shared cache
    for the next one, as post-merge CI on main would. An ephemeral CI runner with a
    remote cache.

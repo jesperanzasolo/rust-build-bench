@@ -8,7 +8,7 @@ description = "Python linter/formatter and type checker (ty). Test-heavy, snapsh
 # Tip of the replay window. The window is the N first-parent commits ending here,
 # i.e. N squash-merged PRs as main's CI saw them.
 commit = "d1e1b1f69b511df4385f64b510eeec4da01c1a0e"
-replay_commits = 20
+replay_commits = 10
 
 # Mirrors ruff's own CI test job: `cargo nextest run --all-features`.
 cargo_args = ["--all-features"]

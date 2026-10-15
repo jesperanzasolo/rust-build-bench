@@ -125,8 +125,9 @@ machines can be spotted. Numbers are not normalised by it.
 
 For each corpus:
 
-1. Drop ineligible tools: any canary failure, or a cold run that fails where the
-   `cargo` baseline passes.
+1. Drop ineligible tools: any canary failure, or (when the `cargo` baseline passes
+   every non-canary step, i.e. the corpus has no failing or flaky tests) a cold run
+   that fails.
 2. **B** = the eligible baseline or Cargo-native tool with the lowest replay-fresh
    total time. **H** = the eligible hermetic tool with the lowest replay-fresh
    total time.

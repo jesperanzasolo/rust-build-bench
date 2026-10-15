@@ -69,6 +69,15 @@ def parse_action_stats(text: str) -> dict:
     return out
 
 
+def _third_party_hash(files: dict[str, str], rust_version: str) -> str:
+    """Everything Reindeer's vendor + buckify output depends on."""
+    h = hashlib.sha256(rust_version.encode())
+    for rel in sorted(files):
+        if rel.startswith(gen.THIRD_PARTY + "/") and rel != gen.LOCK_SEED_PATH:
+            h.update(f"\0{rel}\0{files[rel]}".encode())
+    return h.hexdigest()
+
+
 class Buck2Adapter(Adapter):
     name = "buck2"
     family = "hermetic"
@@ -129,10 +138,7 @@ class Buck2Adapter(Adapter):
             state = json.loads(state_path.read_text())
         except (OSError, ValueError):
             state = {}
-        manifest = files[f"{gen.THIRD_PARTY}/Cargo.toml"]
-        fixups = "".join(f"{p}\n{t}" for p, t in sorted(files.items()) if "/fixups/" in p)
-        tp_hash = hashlib.sha256((manifest + files[f"{gen.THIRD_PARTY}/reindeer.toml"] + files[f"{gen.THIRD_PARTY}/.gitignore"]
-                                  + fixups + rust_version).encode()).hexdigest()
+        tp_hash = _third_party_hash(files, rust_version)
 
         # Remove BUCK files generated for a previous commit that no longer apply.
         for old in state.get("files", []):
@@ -167,9 +173,7 @@ class Buck2Adapter(Adapter):
                     p.parent.mkdir(parents=True, exist_ok=True)
                     if not p.exists() or p.read_text() != text:
                         p.write_text(text)
-            fixups = "".join(f"{p}\n{t}" for p, t in sorted(files.items()) if "/fixups/" in p)
-            tp_hash = hashlib.sha256((manifest + files[f"{gen.THIRD_PARTY}/reindeer.toml"] + files[f"{gen.THIRD_PARTY}/.gitignore"]
-                                      + fixups + rust_version).encode()).hexdigest()
+            tp_hash = _third_party_hash(files, rust_version)
             r = ctx.run(reindeer + ["buckify"], scenario="sync", step="reindeer-buckify", env=self.env())
             if not r.ok:
                 raise RuntimeError(f"reindeer buckify failed, see {r.log_path}")

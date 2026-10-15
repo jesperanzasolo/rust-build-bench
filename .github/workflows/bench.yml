@@ -30,6 +30,7 @@ jobs:
       corpora: ${{ steps.p.outputs.corpora }}
       tools: ${{ steps.p.outputs.tools }}
       bench: ${{ steps.p.outputs.bench }}
+      suffix: ${{ steps.p.outputs.suffix }}
     steps:
       - uses: actions/checkout@v5
       - id: p
@@ -45,6 +46,7 @@ jobs:
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "corpora=$CORPORA" >> "$GITHUB_OUTPUT"
           echo "bench=$BENCH" >> "$GITHUB_OUTPUT"
+          echo "suffix=${SUFFIX:-}" >> "$GITHUB_OUTPUT"
           echo "tools=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1].split(",")))' "$TOOLS")" >> "$GITHUB_OUTPUT"
 
   bench:
@@ -62,6 +64,9 @@ jobs:
       BENCH: ${{ needs.plan.outputs.bench }}
       RBB_PUBLISH: "1"
       RBB_PUBLISH_NAME: ${{ matrix.tool }}
+      # Reruns publish to their own branch (e.g. run/<id>/moon--ra); the report job
+      # overlays branches in name order, so a rerun's files win.
+      RBB_PUBLISH_BRANCH: run/${{ needs.plan.outputs.run_id }}/${{ matrix.tool }}${{ needs.plan.outputs.suffix }}
     steps:
       - uses: actions/checkout@v5
       - name: Machine
@@ -99,10 +104,9 @@ jobs:
         run: |
           git config --global user.name "rust-build-bench"
           git config --global user.email "rust-build-bench@users.noreply.github.com"
-          for b in $(git ls-remote --heads origin "run/$RUN_ID/*" | awk '{print $2}' | sed 's#refs/heads/##' | grep -v '/report$'); do
+          for b in $(git ls-remote --heads origin "run/$RUN_ID/*" | awk '{print $2}' | sed 's#refs/heads/##' | grep -v -E '/(report|all)$' | sort); do
             git fetch -q origin "$b"
             git archive FETCH_HEAD "results/$RUN_ID" | tar -x
           done
           python3 -m rbb report "results/$RUN_ID"
-          scripts/collect.sh "$RUN_ID" all
-          git push -q -f origin "run/$RUN_ID/all:run/$RUN_ID/report"
+          RBB_PUBLISH_BRANCH="run/$RUN_ID/report" scripts/collect.sh "$RUN_ID" all

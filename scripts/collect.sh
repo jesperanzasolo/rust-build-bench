@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish results to a branch, run/<run-id>/<name>, from a temporary worktree so
+# Publish results to a branch, run/<run-id>/<name> (or $RBB_PUBLISH_BRANCH), from a temporary worktree so
 # the main checkout (and a run in progress) is never touched. Logs are copied
 # gzipped; results.jsonl and provenance.json stay plain text. Safe to repeat.
 #
@@ -12,7 +12,7 @@ root=$PWD
 tmp=$(mktemp -d)
 trap 'git -C "$root" worktree remove --force "$tmp" >/dev/null 2>&1 || true' EXIT
 git worktree add -q --detach "$tmp" HEAD
-branch="run/$RUN_ID/$NAME"
+branch=${RBB_PUBLISH_BRANCH:-"run/$RUN_ID/$NAME"}
 git -C "$tmp" checkout -q -B "$branch"
 dest="$tmp/results/$RUN_ID"
 mkdir -p "$dest"

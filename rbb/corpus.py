@@ -7,6 +7,7 @@ generated configuration from one tool can never leak into another tool's run.
 from __future__ import annotations
 
 import dataclasses
+import os
 import re
 from pathlib import Path
 
@@ -60,11 +61,34 @@ def clone_for_tool(mirror: Path, ws: Path, generated_paths: tuple[str, ...]) -> 
     exclude.write_text("\n".join(lines) + "\n")
 
 
+# Per-package config files some tools generate. If a crate directory disappears
+# between commits, a stale one would keep the directory alive and break Cargo's
+# `members = ["crates/*"]` glob, so they are removed from directories that hold no
+# tracked files after checkout. The adapter's sync() regenerates them.
+GENERATED_CONFIG = {"BUILD.bazel", "BUCK", "moon.yml"}
+_SKIP_DIRS = {".git", "target", "buck-out", "third-party", ".moon"}
+
+
 def checkout(ws: Path, commit: str) -> None:
     """Move the work tree to `commit`, keeping ignored (generated) files and build
     state, exactly as `git checkout` on a CI runner with a persistent workspace."""
     git(ws, "checkout", "-q", "--detach", "--force", commit)
     git(ws, "clean", "-q", "-fd")   # untracked, non-ignored files only
+    tracked_dirs = {str(Path(f).parent) for f in git(ws, "ls-files").splitlines()}
+    tracked_dirs |= {str(p) for d in list(tracked_dirs) for p in Path(d).parents}
+    for dirpath, dirs, files in os.walk(ws, topdown=True):
+        dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith("bazel-")]
+        rel = os.path.relpath(dirpath, ws)
+        if rel == "." or rel in tracked_dirs:
+            continue
+        stale = [f for f in files if f in GENERATED_CONFIG]
+        for f in stale:
+            os.unlink(os.path.join(dirpath, f))
+        if stale:
+            try:
+                os.removedirs(dirpath)   # removes now-empty parents too
+            except OSError:
+                pass
 
 
 def changed_files(ws: Path, base: str, head: str) -> list[str]:

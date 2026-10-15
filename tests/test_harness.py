@@ -107,5 +107,26 @@ class MeasureTest(unittest.TestCase):
             self.assertIsNotNone(r.wall_s)
 
 
+class CheckoutTest(unittest.TestCase):
+    def test_stale_generated_config_removed(self):
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            subprocess.run(["git", "init", "-q"], cwd=ws, check=True)
+            (ws / "crates/a").mkdir(parents=True)
+            (ws / "crates/a/lib.rs").write_text("")
+            git(ws, "add", "-A"); git(ws, "commit", "-q", "-m", "a")
+            c1 = git(ws, "rev-parse", "HEAD")
+            (ws / "crates/b").mkdir()
+            (ws / "crates/b/lib.rs").write_text("")
+            git(ws, "add", "-A"); git(ws, "commit", "-q", "-m", "b")
+            (ws / ".git/info/exclude").write_text("BUILD.bazel\n")
+            (ws / "crates/a/BUILD.bazel").write_text("x")
+            (ws / "crates/b/BUILD.bazel").write_text("x")
+            from rbb.corpus import checkout
+            checkout(ws, c1)
+            self.assertFalse((ws / "crates/b").exists())
+            self.assertTrue((ws / "crates/a/BUILD.bazel").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

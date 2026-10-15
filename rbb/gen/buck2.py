@@ -431,8 +431,11 @@ def reindeer_toml(host_triple: str) -> str:
 # Reindeer configuration (schema: reindeer src/config.rs), following
 # examples/03-complex-fixups: vendored sources, precise srcs, Cargo env for crates.
 
-# Parse crate sources to find the files a crate reads (mod paths, include_str!).
-precise_srcs = true
+# Reindeer's default source discovery: every `.rs` file under the directory of the
+# crate root. `precise_srcs = true` cannot follow `mod` items declared inside macros
+# (libc, serde_core), so non-Rust files read by include*! are added per crate as
+# `extra_srcs` fixups found by scanning the vendored sources.
+precise_srcs = false
 
 # Provide all CARGO_PKG_* / CARGO_MANIFEST_DIR variables to third-party crates
 # unless a crate's fixups.toml says otherwise (Cargo provides them all).
@@ -484,9 +487,50 @@ vendor/*/.travis.yml
 """
 
 
-def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]]) -> dict[str, str]:
+def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
+    """{package name: [manifest-relative files]} that vendored crates read with include*!
+    and that `**/*.rs` under the crate root's directory does not already cover."""
+    out: dict[str, set[str]] = {}
+    if not vendor_dir.is_dir():
+        return {}
+    for crate_dir in sorted(vendor_dir.iterdir()):
+        man = crate_dir / "Cargo.toml"
+        if not man.is_file():
+            continue
+        try:
+            name = tomllib.loads(man.read_text(errors="replace"))["package"]["name"]
+        except (tomllib.TOMLDecodeError, KeyError, TypeError):
+            continue
+        root = crate_dir.resolve()
+        for dirpath, dirs, files in os.walk(root):
+            dirs.sort()
+            for fn in sorted(files):
+                if not fn.endswith(".rs"):
+                    continue
+                path = Path(dirpath) / fn
+                try:
+                    text = path.read_text(errors="replace")
+                except OSError:
+                    continue
+                for m in _INCLUDE_RE.finditer(text):
+                    inc = m.group(1)
+                    tgt = ((root / inc.lstrip("/")) if "CARGO_MANIFEST_DIR" in m.group(0)
+                           else (path.parent / inc)).resolve()
+                    try:
+                        rel = str(tgt.relative_to(root)).replace(os.sep, "/")
+                    except ValueError:
+                        continue
+                    if tgt.is_file() and not rel.endswith(".rs"):
+                        out.setdefault(name, set()).add(rel)
+    return {k: sorted(v) for k, v in sorted(out.items())}
+
+
+def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
+                       extra_srcs: dict[str, list[str]] | None = None) -> dict[str, str]:
     """fixups/<crate>/fixups.toml for third-party crates that have a build script (run it,
-    the generic best-effort choice) or a Cargo profile override."""
+    the generic best-effort choice), a Cargo profile override, or files read by include*!
+    (from `scan_vendor_includes`)."""
+    extra_srcs = extra_srcs or {}
     member_ids = set(an.member_ids.values())
     tp_pkgs: dict[str, list[dict]] = {}
     for p in an.ws.raw["packages"]:
@@ -499,9 +543,12 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]]) -> dic
         has_bs = any(any("custom-build" in t["kind"] for t in p["targets"]) for p in versions)
         links = any(p.get("links") for p in versions)
         flags = package_flags.get(name)
-        if not has_bs and not flags:
+        extra = extra_srcs.get(name)
+        if not has_bs and not flags and not extra:
             continue
         lines = [HEADER]
+        if extra:
+            lines += ["# Files read by include*! macros.", f"extra_srcs = {_tval(extra)}"]
         if flags:
             lines += ["# Cargo [profile] package override.", f"rustc_flags = {_tval(flags)}"]
         if has_bs:
@@ -774,7 +821,8 @@ def _export_label(pkgs: dict[str, BuckPackage], ws: Workspace, path: str) -> str
 
 
 def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
-             host_triple: str = DEFAULT_HOST_TRIPLE, host_cfg_text: str = DEFAULT_HOST_CFG
+             host_triple: str = DEFAULT_HOST_TRIPLE, host_cfg_text: str = DEFAULT_HOST_CFG,
+             vendor_extra_srcs: dict[str, list[str]] | None = None
              ) -> tuple[dict[str, str], dict]:
     """Return ({repo-relative path: text}, coverage) for the whole Buck2 overlay.
 
@@ -1032,7 +1080,8 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
         for p in ws.raw["packages"]:
             if p["id"] not in an.member_ids.values():
                 tp_flags[p["name"]] = star_flags + tp_flags.get(p["name"], [])
-    fixups = third_party_fixups(an, {n: f for n, f in tp_flags.items() if n not in an.member_ids})
+    fixups = third_party_fixups(an, {n: f for n, f in tp_flags.items() if n not in an.member_ids},
+                                vendor_extra_srcs)
     files_out.update(fixups)
     lock = (Path(ws.raw.get("workspace_root") or ws.root) / "Cargo.lock")
     if lock.exists():

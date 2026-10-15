@@ -34,11 +34,14 @@ _SUMMARY = re.compile(
 _STATS = re.compile(r"Commands: (\d+) \(cached: (\d+), remote: (\d+), local: (\d+)\)")
 _HITS = re.compile(r"Cache hits: (\d+)%")
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
 STATE_FILE = ".rbb-buck2-state.json"
 
 
 def parse_test_summary(text: str) -> dict:
     """Counts from the last `Tests finished:` line of a `buck2 test` log."""
+    text = _ANSI.sub("", text)
     ms = list(_SUMMARY.finditer(text))
     if not ms:
         return {}
@@ -53,6 +56,7 @@ def parse_test_summary(text: str) -> dict:
 
 
 def parse_action_stats(text: str) -> dict:
+    text = _ANSI.sub("", text)
     ms = list(_STATS.finditer(text))
     if not ms:
         return {}
@@ -92,7 +96,8 @@ class Buck2Adapter(Adapter):
         c = self.ctx
         return {
             "buck2": c.capture(["buck2", "--version"]).strip(),
-            "reindeer": c.capture(["reindeer", "--version"]).strip(),
+            # reindeer has no --version flag; record the pinned tag it was installed from.
+            "reindeer": str((c.versions_cfg.get("reindeer") or {}).get("version", "unknown")),
             "rustc": c.capture(["rustc", "--version"]).strip(),
             "cargo": c.capture(["cargo", "--version"]).strip(),
         }
@@ -109,8 +114,14 @@ class Buck2Adapter(Adapter):
         rust_version = common.rust_version(ws_root, env=ctx.base_env())
         host_triple = self._host_triple()
         host_cfg = ctx.capture(["rustc", "--print", "cfg", "--target", host_triple])
-        files, coverage = gen.generate(ws, ctx.corpus, rust_version, self._endpoint(),
-                                       host_triple=host_triple, host_cfg_text=host_cfg)
+        tp_dir = ws_root / gen.THIRD_PARTY
+
+        def generate():
+            return gen.generate(ws, ctx.corpus, rust_version, self._endpoint(),
+                                host_triple=host_triple, host_cfg_text=host_cfg,
+                                vendor_extra_srcs=gen.scan_vendor_includes(tp_dir / "vendor"))
+
+        files, coverage = generate()
         lock_seed = files.pop(gen.LOCK_SEED_PATH, None)
 
         state_path = ws_root / STATE_FILE
@@ -133,7 +144,6 @@ class Buck2Adapter(Adapter):
             if not p.exists() or p.read_text() != text:
                 p.write_text(text)
 
-        tp_dir = ws_root / gen.THIRD_PARTY
         if state.get("third_party_hash") != tp_hash or not (tp_dir / "BUCK").exists():
             # Seed Reindeer's resolve with the workspace lockfile so versions match.
             if lock_seed is not None:
@@ -148,6 +158,18 @@ class Buck2Adapter(Adapter):
             r = ctx.run(reindeer + ["vendor"], scenario="sync", step="reindeer-vendor", env=self.env())
             if not r.ok:
                 raise RuntimeError(f"reindeer vendor failed, see {r.log_path}")
+            # Vendoring can change which files crates include; regenerate their fixups.
+            files, coverage = generate()
+            files.pop(gen.LOCK_SEED_PATH, None)
+            for rel, text in files.items():
+                if "/fixups/" in rel:
+                    p = ws_root / rel
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    if not p.exists() or p.read_text() != text:
+                        p.write_text(text)
+            fixups = "".join(f"{p}\n{t}" for p, t in sorted(files.items()) if "/fixups/" in p)
+            tp_hash = hashlib.sha256((manifest + files[f"{gen.THIRD_PARTY}/reindeer.toml"]
+                                      + fixups + rust_version).encode()).hexdigest()
             r = ctx.run(reindeer + ["buckify"], scenario="sync", step="reindeer-buckify", env=self.env())
             if not r.ok:
                 raise RuntimeError(f"reindeer buckify failed, see {r.log_path}")

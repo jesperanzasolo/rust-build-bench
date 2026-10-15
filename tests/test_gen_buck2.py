@@ -225,7 +225,7 @@ class GenBuck2Test(unittest.TestCase):
 
     def test_reindeer_toml(self):
         doc = tomllib.loads(self.files["third-party/reindeer.toml"])
-        self.assertTrue(doc["precise_srcs"])
+        self.assertFalse(doc["precise_srcs"])
         self.assertEqual(doc["platform"], {"linux-x86_64": {"target": "x86_64-unknown-linux-gnu"}})
         self.assertEqual(doc["buck"]["rust_library"], "cargo.rust_library")
         self.assertEqual(doc["vendor"], {"gitignore_checksum_exclude": [".gitignore"]})
@@ -333,6 +333,22 @@ class GenBuck2Test(unittest.TestCase):
     def test_include_inside_package_is_a_src(self):
         lib = self.app.split('rust_library(\n    name = "app",')[1].split("\n)\n")[0]
         self.assertIn('"data/s.txt"', lib)
+
+    def test_vendor_include_fixups(self):
+        vendor = self.root / "third-party" / "vendor" / "anyhow-1.0.80"
+        (vendor / "src").mkdir(parents=True, exist_ok=True)
+        (vendor / "Cargo.toml").write_text('[package]\nname = "anyhow"\nversion = "1.0.80"\n')
+        (vendor / "src" / "lib.rs").write_text('const A: &str = include_str!("../README.md");\n'
+                                               'include!("gen.rs");\n')
+        (vendor / "README.md").write_text("x\n")
+        (vendor / "src" / "gen.rs").write_text("\n")
+        scanned = gen.scan_vendor_includes(self.root / "third-party" / "vendor")
+        self.assertEqual(scanned, {"anyhow": ["README.md"]})
+        files, cov = gen.generate(self.ws, make_corpus(), "1.99.0", None, vendor_extra_srcs=scanned)
+        self.assertIn('extra_srcs = ["README.md"]\n', files["third-party/fixups/anyhow/fixups.toml"])
+        self.assertIn("anyhow", cov["crates_with_fixups"])
+        import shutil
+        shutil.rmtree(self.root / "third-party")
 
     def test_cfg_eval(self):
         cfg = gen.parse_cfg(gen.DEFAULT_HOST_CFG)

@@ -362,6 +362,74 @@ class _Names:
 
 
 # ---------------------------------------------------------------------------
+# Cargo profile -> rules_rust flags
+# ---------------------------------------------------------------------------
+
+_DEBUG_MAP = {True: "2", False: "0", 0: "0", 1: "1", 2: "2", "none": "0", "limited": "1",
+              "full": "2", "line-tables-only": "line-tables-only",
+              "line-directives-only": "line-directives-only"}
+
+
+def external_crate_path_prefix(name: str, version: str) -> str:
+    """Exec-path prefix of a crate_universe crate's sources (Bazel 9 canonical names)."""
+    return f"external/rules_rust++crate+{CRATES_REPO}__{name}-{version}/"
+
+
+def profile_rustc_flags(ws: Workspace) -> tuple[list[str], list[str]]:
+    """Mirror the settings the corpus *explicitly* sets in `[profile.dev]` /
+    `[profile.test]` (the profiles `cargo test` builds with) onto rules_rust's
+    fastbuild configuration. Cargo's own defaults are not mirrored: Bazel's stand.
+
+    Returns (extra_rustc_flag values, per_crate_rustc_flag values)."""
+    try:
+        root = tomllib.loads((ws.root / "Cargo.toml").read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        return [], []
+    profiles = root.get("profile", {}) or {}
+    merged: dict = {}
+    packages: dict[str, dict] = {}
+    for name in ("dev", "test"):
+        prof = profiles.get(name, {}) or {}
+        for k, v in prof.items():
+            if k == "package":
+                for pk, pv in (v or {}).items():
+                    packages.setdefault(pk, {}).update(pv or {})
+            elif k != "build-override":
+                merged[k] = v
+
+    def flags(prof: dict) -> list[str]:
+        out = []
+        if "opt-level" in prof:
+            out.append(f"-Copt-level={prof['opt-level']}")
+        if "debug" in prof and prof["debug"] in _DEBUG_MAP:
+            out.append(f"-Cdebuginfo={_DEBUG_MAP[prof['debug']]}")
+        return out
+
+    extra = flags(merged)
+    if any(f.startswith("-Copt-level=") and f != "-Copt-level=0" for f in extra):
+        # rustc turns these off above opt-level 0; Cargo's dev profile keeps them on.
+        extra += [f"-Cdebug-assertions={'on' if merged.get('debug-assertions', True) else 'off'}",
+                  f"-Coverflow-checks={'on' if merged.get('overflow-checks', True) else 'off'}"]
+    per_crate: list[str] = []
+    versions: dict[str, set[str]] = {}
+    members = {p.name: p for p in ws.packages.values()}
+    for p in ws.raw.get("packages", []):
+        versions.setdefault(p["name"], set()).add(p["version"])
+    for pk in sorted(packages):
+        fl = flags(packages[pk])
+        if not fl:
+            continue
+        if pk == "*":
+            continue  # applies to non-members only; no rules_rust prefix expresses that
+        if pk in members:
+            prefixes = [f"//{'' if members[pk].dir == '.' else members[pk].dir}:"]
+        else:
+            prefixes = [external_crate_path_prefix(pk, v) for v in sorted(versions.get(pk, ()))]
+        per_crate += [f"{pre}@{f}" for pre in prefixes for f in fl]
+    return extra, per_crate
+
+
+# ---------------------------------------------------------------------------
 # Top-level files
 # ---------------------------------------------------------------------------
 
@@ -405,7 +473,8 @@ def module_bazel(ws: Workspace, *, rust_version: str, rules_rust_version: str,
 
 
 def bazelrc(*, output_user_root: str, repository_cache: str, remote_cache: str | None,
-            test_env: dict[str, str]) -> str:
+            test_env: dict[str, str], extra_rustc_flags: list[str] = (),
+            per_crate_rustc_flags: list[str] = ()) -> str:
     lines = [
         HEADER.rstrip("\n"),
         f"startup --output_user_root={output_user_root}",
@@ -419,6 +488,10 @@ def bazelrc(*, output_user_root: str, repository_cache: str, remote_cache: str |
         "build --incompatible_strict_action_env",
         "build --keep_going",
     ]
+    if extra_rustc_flags or per_crate_rustc_flags:
+        lines.append("# The corpus' explicit [profile.dev]/[profile.test] settings (what `cargo test` uses).")
+    lines += [f"build --@rules_rust//rust/settings:extra_rustc_flag={f}" for f in extra_rustc_flags]
+    lines += [f"build --@rules_rust//rust/settings:per_crate_rustc_flag={f}" for f in per_crate_rustc_flags]
     if remote_cache:
         lines += [f"build --remote_cache={remote_cache}", "build --remote_upload_local_results"]
     lines += [
@@ -983,10 +1056,13 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
         edition=edition, platform_triples=[host_triple], rust_sha256s=rust_sha256s,
         cargo_bazel_lockfile=CARGO_BAZEL_LOCKFILE if cargo_bazel_lockfile else None)
     files[".bazelversion"] = bazel_version + "\n"
+    extra_flags, per_crate_flags = profile_rustc_flags(ws)
+    coverage["profile_rustc_flags"] = {"extra": extra_flags, "per_crate": per_crate_flags}
     files[".bazelrc"] = bazelrc(
         output_user_root=output_user_root, repository_cache=repository_cache,
         remote_cache=remote_cache,
-        test_env=test_env if test_env is not None else default_test_env(corpus.env))
+        test_env=test_env if test_env is not None else default_test_env(corpus.env),
+        extra_rustc_flags=extra_flags, per_crate_rustc_flags=per_crate_flags)
     files["BUILD.bazel"] = _root_build(ws, ctx, root_pkg_build, cargo_bazel_lockfile)
     if root_pkg_build is not None:
         # The root package's filegroups for files other packages include.

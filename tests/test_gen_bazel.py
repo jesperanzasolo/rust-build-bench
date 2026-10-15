@@ -90,7 +90,10 @@ def make_metadata(root: Path) -> dict:
 
 def write_tree(root: Path) -> None:
     files = {
-        "Cargo.toml": '[workspace]\nmembers = ["crates/*"]\n',
+        "Cargo.toml": ('[workspace]\nmembers = ["crates/*"]\n'
+                       '[profile.dev]\nopt-level = 1\ndebug = "line-tables-only"\n'
+                       '[profile.dev.package.rand]\nopt-level = 3\n'
+                       '[profile.dev.package.my-macros]\nopt-level = 2\n'),
         "Cargo.lock": "version = 4\n",
         "shared/data.txt": "hello\n",
         "crates/core-lib/Cargo.toml": '[package]\nname = "core-lib"\nversion = "0.1.0"\n',
@@ -190,6 +193,14 @@ class GenBazelTest(unittest.TestCase):
                      "test --run_under=//:rbb_test_launcher"):
             self.assertIn(line + "\n", rc)
         self.assertNotIn("disk_cache", rc)
+        for line in ("build --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=1",
+                     "build --@rules_rust//rust/settings:extra_rustc_flag=-Cdebuginfo=line-tables-only",
+                     "build --@rules_rust//rust/settings:extra_rustc_flag=-Cdebug-assertions=on",
+                     "build --@rules_rust//rust/settings:extra_rustc_flag=-Coverflow-checks=on",
+                     "build --@rules_rust//rust/settings:per_crate_rustc_flag="
+                     "external/rules_rust++crate+crates__rand-0.8.5/@-Copt-level=3",
+                     "build --@rules_rust//rust/settings:per_crate_rustc_flag=//crates/my-macros:@-Copt-level=2"):
+            self.assertIn(line + "\n", rc)
 
     def test_library(self):
         b = self.files["crates/core-lib/BUILD.bazel"]

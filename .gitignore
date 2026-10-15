@@ -1,4 +1,5 @@
+/_work/
 __pycache__/
 *.pyc
-/_work/
-/.venv/
+results/smoke-*/
+results/*.console.log

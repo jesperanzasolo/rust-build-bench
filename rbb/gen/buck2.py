@@ -304,6 +304,26 @@ def _sanitize(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]+", "-", s).strip("-")
 
 
+def _active_edge(pkg: dict, features: list[str], extern: str) -> bool:
+    """Is the resolve edge `pkg -> extern` activated by `pkg`'s enabled features?
+    `cargo metadata` lists optional dependencies in resolve.nodes even when no enabled
+    feature turns them on."""
+    decls = [d for d in pkg.get("dependencies", [])
+             if (d.get("rename") or d["name"]).replace("-", "_") == extern]
+    if not decls or any(not d.get("optional") for d in decls):
+        return True
+    enabled: set[str] = set()
+    fmap = pkg.get("features") or {}
+    for f in features:
+        enabled.add(f)
+        for e in fmap.get(f, []):
+            if e.startswith("dep:"):
+                enabled.add(e[4:])
+            elif "/" in e and "?/" not in e:
+                enabled.add(e.split("/", 1)[0])
+    return any((d.get("rename") or d["name"]) in enabled for d in decls)
+
+
 def analyze(ws: Workspace, host_cfg: dict[str, set[str]], host_triple: str) -> Analysis:
     raw = ws.raw
     by_id = {p["id"]: p for p in raw["packages"]}
@@ -358,7 +378,10 @@ def analyze(ws: Workspace, host_cfg: dict[str, set[str]], host_triple: str) -> A
     stack = list(members)
     while stack:
         pid = stack.pop()
+        feats = nodes.get(pid, {}).get("features", [])
         for d in nodes.get(pid, {}).get("deps", []):
+            if not _active_edge(by_id[pid], feats, d["name"]):
+                continue
             for dk in d.get("dep_kinds") or [{"kind": None, "target": None}]:
                 kind = dk.get("kind") or "normal"
                 if kind == "dev" and pid not in members:

@@ -1,0 +1,201 @@
+{
+ "bench": {
+  "canary": true,
+  "cold_samples": 1,
+  "fresh_commits": 5,
+  "noop_samples": 3,
+  "scenarios": [
+   "cold",
+   "noop",
+   "replay-warm",
+   "replay-fresh",
+   "canary"
+  ],
+  "step_timeout_s": 5400,
+  "warm_commits": 10
+ },
+ "calibration": {
+  "sha256_1GiB_single_s": 0.456,
+  "sha256_512MiB_x8_parallel_s": 0.408
+ },
+ "corpus": {
+  "canary": {
+   "downstream": "ruff_linter",
+   "upstream": "ruff_text_size"
+  },
+  "cargo_args": [
+   "--all-features"
+  ],
+  "commit": "d1e1b1f69b511df4385f64b510eeec4da01c1a0e",
+  "description": "Python linter/formatter and type checker (ty). Test-heavy, snapshot-heavy.",
+  "env": {
+   "CARGO_PROFILE_DEV_DEBUG": "line-tables-only"
+  },
+  "exclude_packages": [],
+  "extra_data": {
+   "ruff": [
+    "crates/ruff_linter/resources/**",
+    "crates/ruff_notebook/resources/**"
+   ],
+   "ruff_linter": [
+    "crates/ruff_notebook/resources/**"
+   ],
+   "ruff_mdtest": [
+    "crates/ruff_linter/resources/**"
+   ],
+   "ruff_workspace": [
+    "crates/ruff_linter/resources/**"
+   ],
+   "ty_module_resolver": [
+    "crates/ty_vendored/vendor/**"
+   ]
+  },
+  "kind": "git",
+  "metadata_args": [
+   "--all-features"
+  ],
+  "name": "ruff",
+  "replay_commits": 10,
+  "repo": "https://github.com/astral-sh/ruff",
+  "skip_tests": [],
+  "synthetic": {},
+  "toolchain_components": []
+ },
+ "harness_commit": "c4995142620c27cb18f624f9ff266609cb055185",
+ "harness_dirty": true,
+ "harness_version": "0.1.0",
+ "installed_binaries": {
+  "bazel-remote@2.6.3": {
+   "bazel-remote": "65427624c288e29b17c7b0e189cf1d03ae1d8745354d9effc432f75c4361159a"
+  },
+  "cargo-nextest@0.9.148": {
+   "cargo-nextest": "53470cfc9b5cbcd96780db2d348700d76af962467503791f1f8a8824d8967e5c"
+  },
+  "moon@2.6.2": {
+   "moon": "1947d8334b73d9fa314cca9dc14e2450ddf7ce495ae4bf7157ab6d5790ebf063"
+  },
+  "uv@0.13.1": {
+   "uv": "db919fb9428cc8ad04377ba3c898e0ec5fbee83700da5b982b1c9539f1e1b34f"
+  }
+ },
+ "machine": {
+  "cpu_model": "AMD EPYC",
+  "hostname_hash": "2f4c1e1e6d79",
+  "mem_total_kib": 16437876,
+  "nproc": 8,
+  "platform": "Linux-7.1.4-x86_64-with-glibc2.39",
+  "python": "3.12.3"
+ },
+ "pinned_versions": {
+  "bazel": {
+   "version": "9.3.0"
+  },
+  "bazel-remote": {
+   "binaries": [
+    "bazel-remote"
+   ],
+   "format": "bin",
+   "rename": "bazel-remote",
+   "url": "https://github.com/buchgr/bazel-remote/releases/download/v{version}/bazel-remote-{version}-linux-amd64",
+   "version": "2.6.3"
+  },
+  "bazelisk": {
+   "binaries": [
+    "bazel"
+   ],
+   "format": "bin",
+   "rename": "bazel",
+   "url": "https://github.com/bazelbuild/bazelisk/releases/download/v{version}/bazelisk-linux-amd64",
+   "version": "1.29.0"
+  },
+  "buck2": {
+   "binaries": [
+    "buck2"
+   ],
+   "format": "zst",
+   "rename": "buck2",
+   "url": "https://github.com/facebook/buck2/releases/download/{version}/buck2-x86_64-unknown-linux-gnu.zst",
+   "version": "2026-10-15"
+  },
+  "cargo-nextest": {
+   "binaries": [
+    "cargo-nextest"
+   ],
+   "format": "tar.gz",
+   "url": "https://get.nexte.st/{version}/linux",
+   "version": "0.9.148"
+  },
+  "cargo-rail": {
+   "binaries": [
+    "cargo-rail"
+   ],
+   "format": "zip",
+   "keep_dir": true,
+   "sums_url": "https://github.com/loadingalias/cargo-rail/releases/download/v{version}/SHA256SUMS",
+   "url": "https://github.com/loadingalias/cargo-rail/releases/download/v{version}/cargo-rail-x86_64-unknown-linux-gnu.zip",
+   "version": "0.31.1"
+  },
+  "moon": {
+   "binaries": [
+    "moon"
+   ],
+   "installer": "https://moonrepo.dev/install/moon.sh",
+   "version": "2.6.2"
+  },
+  "reindeer": {
+   "binaries": [
+    "reindeer"
+   ],
+   "cargo_install": {
+    "crate": "reindeer",
+    "git": "https://github.com/facebookincubator/reindeer",
+    "tag": "{version}"
+   },
+   "version": "v2026.10.12.00"
+  },
+  "rules_rust": {
+   "version": "0.74.0"
+  },
+  "rust": {},
+  "sccache": {
+   "binaries": [
+    "sccache"
+   ],
+   "format": "tar.gz",
+   "url": "https://github.com/mozilla/sccache/releases/download/v{version}/sccache-v{version}-x86_64-unknown-linux-musl.tar.gz",
+   "version": "0.18.0"
+  },
+  "uv": {
+   "binaries": [
+    "uv"
+   ],
+   "format": "tar.gz",
+   "url": "https://github.com/astral-sh/uv/releases/download/{version}/uv-x86_64-unknown-linux-gnu.tar.gz",
+   "version": "0.13.1"
+  }
+ },
+ "replay_window": [
+  "ef02d604358ecf02e0179e99d8a6a72226395f48",
+  "2cc92a6a17bc77e0520396e94d242ec5f75aa6dc",
+  "88ee6e53e9087e85c35b3633dd3d7480300b1def",
+  "30c4b67ae0af8ec2e5eed5b4a6a1c60192de2cb9",
+  "e26e6d2a54ac2c5e1f5b1945042de3ff3885bf8e",
+  "355b42a7719d8a555e3ee50c89848b42d8a11eb5",
+  "d01678ebf594c97a7767d4372061c1f80ae5b5bb",
+  "b42a8734410230f4529151782cae951b99bed858",
+  "83a3afc3156d73ae4296f3fa74ede28e4c72bfcd",
+  "93526150df078af7dd8fc4226cdcc469539d2001",
+  "d1e1b1f69b511df4385f64b510eeec4da01c1a0e"
+ ],
+ "run_id": "2026-10-15",
+ "rust_toolchain": "1.99.0",
+ "schema": "rbb.provenance/v1",
+ "started": "2026-10-15T16:02:48+00:00",
+ "tool": "moon",
+ "tool_versions": {
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)",
+  "cargo-nextest": "cargo-nextest 0.9.148 (cd1d6d546 2026-10-07)",
+  "moon": "moon 2.6.2",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)"
+ }
+}

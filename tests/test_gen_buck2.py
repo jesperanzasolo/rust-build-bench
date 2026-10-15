@@ -349,15 +349,17 @@ class GenBuck2Test(unittest.TestCase):
         (vendor / "Cargo.toml").write_text('[package]\nname = "anyhow"\nversion = "1.0.80"\n')
         (vendor / "src" / "lib.rs").write_text('const A: &str = include_str!("../README.md");\n'
                                                'include!("gen.rs");\n'
-                                               'include!("../data/mod.rs");\n')
+                                               'include!("../data/mod.rs");\n'
+                                               '#[derive(Parser)]\n#[grammar = "g.pest"]\nstruct P;\n')
+        (vendor / "src" / "g.pest").write_text("x = { \"a\" }\n")
         (vendor / "data").mkdir(exist_ok=True)
         (vendor / "data" / "mod.rs").write_text("\n")
         (vendor / "README.md").write_text("x\n")
         (vendor / "src" / "gen.rs").write_text("\n")
         scanned = gen.scan_vendor_includes(self.root / "third-party" / "vendor")
-        self.assertEqual(scanned, {"anyhow": ["README.md", "data/mod.rs"]})
+        self.assertEqual(scanned, {"anyhow": ["README.md", "data/mod.rs", "src/g.pest"]})
         files, cov = gen.generate(self.ws, make_corpus(), "1.99.0", None, vendor_extra_srcs=scanned)
-        self.assertIn('extra_srcs = ["README.md", "data/mod.rs"]\n',
+        self.assertIn('extra_srcs = ["README.md", "data/mod.rs", "src/g.pest"]\n',
                       files["third-party/fixups/anyhow/fixups.toml"])
         self.assertIn("anyhow", cov["crates_with_fixups"])
         import shutil

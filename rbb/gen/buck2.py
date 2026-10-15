@@ -89,6 +89,9 @@ _CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
 _LIB_KINDS = {"lib", "rlib", "proc-macro", "cdylib", "staticlib", "dylib"}
 _INCLUDE_RE = re.compile(
     r'include(?:_str|_bytes)?!\s*\(\s*(?:concat!\s*\(\s*env!\s*\(\s*"CARGO_MANIFEST_DIR"\s*\)\s*,\s*)?"([^"]+)"')
+# pest_derive reads `#[grammar = "x.pest"]` from CARGO_MANIFEST_DIR or its src/ at
+# compile time (pest_generator/src/lib.rs); the file must be among the crate's srcs.
+_PEST_GRAMMAR_RE = re.compile(r'#\[\s*grammar\s*=\s*"([^"]+)"\s*\]')
 
 
 # ---------------------------------------------------------------------------
@@ -586,10 +589,12 @@ def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
                     text = path.read_text(errors="replace")
                 except OSError:
                     continue
-                for m in _INCLUDE_RE.finditer(text):
-                    inc = m.group(1)
-                    tgt = ((root / inc.lstrip("/")) if "CARGO_MANIFEST_DIR" in m.group(0)
-                           else (path.parent / inc)).resolve()
+                found = [((root / m.group(1).lstrip("/")) if "CARGO_MANIFEST_DIR" in m.group(0)
+                          else (path.parent / m.group(1))) for m in _INCLUDE_RE.finditer(text)]
+                for m in _PEST_GRAMMAR_RE.finditer(text):
+                    found += [root / m.group(1), root / "src" / m.group(1)]
+                for tgt in found:
+                    tgt = tgt.resolve()
                     try:
                         rel = str(tgt.relative_to(root)).replace(os.sep, "/")
                     except ValueError:

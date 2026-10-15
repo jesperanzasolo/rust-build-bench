@@ -30,7 +30,7 @@ test fail, on a warm machine and on a fresh one.
 
 ## Reproduce
 
-Requirements: Linux x86_64, Python 3.11+, git, rustup, internet access. One
+Requirements: Linux x86_64, Python 3.12+, git, rustup, internet access. One
 dedicated machine per tool (all the same shape); nothing else running.
 
 ```bash

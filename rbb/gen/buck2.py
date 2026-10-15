@@ -522,7 +522,10 @@ _THIRD_PARTY_GITIGNORE = """\
 # corpus's own rules (e.g. `build/`) would hide crate files such as
 # rustversion's build/build.rs. Re-include all vendored files for Reindeer only
 # ("reindeer:" lines are read by Reindeer, ignored by git), then apply the
-# exclusions below.
+# exclusions below. The directory itself must be re-included first: under gitignore
+# rules a file cannot be re-included while its parent directory is excluded (e.g.
+# rust-analyzer's root .gitignore has `vendor/`).
+reindeer:!vendor/
 reindeer:!vendor/**
 # Anchored: an unanchored `target` would also hide crate directories such as
 # cc's src/target/.

@@ -128,6 +128,9 @@ class CargoRailAdapter(CargoAdapter):
         self.wipe_local()
         self.ctx.capture(["cargo", "rail", "cache", "clean", "--scope", "local"], check=False)
         rm(self._evidence_dir())
+        # Per the docs, a cleaned local store must be re-enrolled before it is used
+        # again; without this every compile reports `local_cache_unavailable`.
+        self.setup()
 
     def state_dirs(self):
         return {"target": self.ctx.paths.ws / "target", "evidence": self._evidence_dir()}

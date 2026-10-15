@@ -1153,12 +1153,14 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
                            if k.startswith("CARGO_PKG_") and k not in ("CARGO_PKG_NAME", "CARGO_PKG_VERSION")}
                 if pkg.links:
                     run_env["CARGO_MANIFEST_LINKS"] = _arg(pkg.links)
+                run_env.update(_buildscript_env(_profile_env(base_flags)))
                 bp.loads.add('load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")')
                 bp.add("buildscript_run", f"{pkg.name}-build-script-run", {
                     "package_name": pkg.name, "version": pkg.version,
                     "buildscript_rule": f":{pkg.name}-build-script-build",
                     "env": dict(sorted(run_env.items())), "features": pkg.features,
-                    "manifest_dir": f":{manifest_fg}"}, order=1)
+                    "manifest_dir": f":{manifest_fg}",
+                    "rustc_link_lib": True, "rustc_link_search": True}, order=1)
                 manifest_fg_needed = True
                 bs_flags = [f"@$(location :{pkg.name}-build-script-run[rustc_flags])"]
                 bs_env = {"OUT_DIR": f"$(location :{pkg.name}-build-script-run[out_dir])"}

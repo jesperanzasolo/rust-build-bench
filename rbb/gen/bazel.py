@@ -642,6 +642,13 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
         cov["targets"].append({"name": bname, "kind": "rust_binary"})
 
     # -- tests --------------------------------------------------------------------
+    # Compile-time CARGO_MANIFEST_DIR for test crates: the package's real directory, as
+    # Cargo sets it. rules_rust's default (`${pwd}/<pkg>`) is the action's sandbox, which
+    # no longer exists when the test runs, so `env!("CARGO_MANIFEST_DIR")` used at run
+    # time (fixture roots, mdtest suites) would point nowhere. Runtime
+    # `std::env::var("CARGO_MANIFEST_DIR")` stays the runfiles copy (see the launcher).
+    abs_pkg = (ws.root / pkg.dir).resolve().as_posix() if pkg.dir != "." else ws.root.resolve().as_posix()
+    test_rustc_env = {"CARGO_MANIFEST_DIR": abs_pkg.replace("$", "$$")}
     test_data = [f":{ALL_FILES}"] + ctx["extra_data_labels"].get(pkg.name, [])
     test_data = sorted(set(test_data))
     args = []
@@ -668,6 +675,7 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
                                 [d for d in d_deps if d not in n_deps]),
                 "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro_dev = True)"),
                                            [d for d in d_pms if d not in n_pms]),
+                "rustc_env": test_rustc_env,
                 "rustc_env_files": env_files,
                 "use_libtest_harness": False if harness.get(("lib", "")) is False else None,
                 "version": pkg.version,
@@ -688,6 +696,7 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
                                 [d for d in d_deps if d not in n_deps]),
                 "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro_dev = True)"),
                                            [d for d in d_pms if d not in n_pms]),
+                "rustc_env": test_rustc_env,
                 "rustc_env_files": env_files,
                 "use_libtest_harness": False if harness.get(("bin", b.name)) is False else None,
                 "version": pkg.version,
@@ -743,7 +752,7 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
                 "env": dict(sorted(bin_env.items())),
                 "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro = True, proc_macro_dev = True)"),
                                            all_pms + lib_pm),
-                "rustc_env": dict(sorted(bin_rustc_env.items())),
+                "rustc_env": dict(sorted({**bin_rustc_env, **test_rustc_env}.items())),
                 "rustc_env_files": env_files,
                 "srcs": srcs,
                 "use_libtest_harness": False if harness.get(("test", t.name)) is False else None,

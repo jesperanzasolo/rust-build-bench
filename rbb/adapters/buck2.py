@@ -211,8 +211,20 @@ class Buck2Adapter(Adapter):
 
     # -- execution ----------------------------------------------------------------
     def test_argv(self) -> list[str]:
-        return ["buck2", "test", "--console=simple", "--keep-going", "//...",
+        argv = ["buck2", "test", "--console=simple", "--keep-going", "//...",
                 "--exclude", gen.INNER_TEST_LABEL]
+        # Buck2 runs tests with a cleared environment (PATH, HOME, USER, LOGNAME,
+        # TMPDIR only; buck2_execute/src/execute/environment_inheritance.rs), while
+        # every Cargo-driven tool's tests see the harness environment: RUSTUP_HOME,
+        # CARGO_HOME, CI, NO_COLOR and the corpus `env`. Pass the same variables to
+        # the test runner (runtime only; compile actions and their cache keys are
+        # unaffected) so test behaviour does not differ between tools.
+        env = self.ctx.base_env()
+        env.update(self.env())
+        runner_args = []
+        for k in sorted(env):
+            runner_args += ["--env", f"{k}={env[k]}"]
+        return argv + ["--", *runner_args]
 
     def test(self, *, scenario, step, base, head) -> TestRun:
         # The same command for every scenario: Buck2 computes what changed from file

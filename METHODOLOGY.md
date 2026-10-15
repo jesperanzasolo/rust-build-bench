@@ -118,10 +118,13 @@ planning-evidence recording) is measured and reported separately as
 
 ## Machines
 
-One run of one tool owns one machine: same shape for all tools (Namespace devbox
-`M`: 8 vCPU, 16 GiB, Ubuntu 24.04, x86_64), nothing else running. Each machine runs
-a fixed CPU calibration workload first; it is reported with the results so noisy
-machines can be spotted. Numbers are not normalised by it.
+Each tool runs in its own GitHub Actions job on a fresh Namespace runner of the
+same profile (`namespace-profile-standard-8`: 8 vCPU, 16 GiB, Ubuntu 24.04,
+x86_64), with nothing else on the machine. Both corpora run back to back in that
+job. Each job runs a fixed CPU calibration workload first; it is reported with the
+results so a noisy machine can be spotted. Numbers are not normalised by it.
+The workflow is [`.github/workflows/bench.yml`](.github/workflows/bench.yml);
+`./run.sh` runs the same protocol on any Linux machine.
 
 ## Decision rule (pre-registered)
 

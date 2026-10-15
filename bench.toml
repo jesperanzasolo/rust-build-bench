@@ -5,9 +5,9 @@
 # Order matters: each scenario starts from the state the previous one left.
 scenarios = ["cold", "noop", "replay-warm", "replay-fresh", "canary"]
 
-cold_samples = 1     # cold builds are long and low-variance relative to their size
+cold_samples = 1     # one cold build per tool
 noop_samples = 3     # median reported
-warm_commits = 20    # replay-warm: every commit of the corpus window
-fresh_commits = 10   # replay-fresh: the last 10 commits of the window
-step_timeout_s = 10800
+warm_commits = 10    # replay-warm: the last 10 real commits of the corpus window
+fresh_commits = 5    # replay-fresh: the last 5 of those, each on a wiped runner
+step_timeout_s = 5400
 canary = true

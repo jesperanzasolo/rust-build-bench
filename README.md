@@ -13,7 +13,7 @@ ever reports a stale test result.
 | [Buck2](https://buck2.build) + [Reindeer](https://github.com/facebookincubator/reindeer) | hermetic |
 
 Corpora: [ruff](https://github.com/astral-sh/ruff) and
-[rust-analyzer](https://github.com/rust-lang/rust-analyzer), each replayed over 20
+[rust-analyzer](https://github.com/rust-lang/rust-analyzer), each replayed over 10
 real merged pull requests.
 
 - **What is measured, and why:** [METHODOLOGY.md](METHODOLOGY.md) (normative)
@@ -24,7 +24,7 @@ real merged pull requests.
 ## Headline metric
 
 Wall time of PR CI on an **ephemeral runner with a shared remote cache**, over the
-last 10 commits of each window ("replay-fresh"). A tool qualifies only if it passes
+last 5 commits of each window ("replay-fresh"). A tool qualifies only if it passes
 the **correctness canary**: a synthetic upstream change that must make a downstream
 test fail, on a warm machine and on a fresh one.
 

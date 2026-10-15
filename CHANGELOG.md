@@ -5,8 +5,9 @@ commit it used, so any result can be traced to the exact state described here.
 
 ## Unreleased
 
-- Initial protocol: scenarios cold, noop, replay-warm (20 commits), replay-fresh
-  (10 commits), canary (warm and fresh).
+- Initial protocol: scenarios cold, noop, replay-warm (10 commits), replay-fresh
+  (last 5 commits), canary (warm and fresh). Sized so a full run finishes in about
+  an hour per tool on an 8 vCPU runner; all tools run in parallel.
 - Tools: cargo + nextest 0.9.148, sccache 0.18.0, cargo-rail 0.31.1, moon 2.6.2,
   Bazel 9.3.0 + rules_rust 0.74.0, Buck2 2026-10-15 + Reindeer v2026.10.12.00,
   bazel-remote 2.6.3 as the shared REAPI cache.

@@ -432,6 +432,30 @@ class ParseTest(unittest.TestCase):
     def test_no_summary(self):
         self.assertEqual(parse_test_summary("error"), {})
 
+    def test_ansi_colored_summary(self):
+        c = parse_test_summary("Tests finished: \x1b[mPass 6\x1b[m. Fail 0. Timeout 0. Fatal 0. "
+                               "Skip 0. Omit 0. Infra Failure 0. \x1b[mBuild failure 2\x1b[m\n")
+        self.assertEqual((c["passed"], c["build_failures"]), (6, 2))
+
+
+class AdapterTest(unittest.TestCase):
+    def test_test_argv(self):
+        from rbb.adapters.base import Context, Paths
+        from rbb.adapters.buck2 import Buck2Adapter
+        from rbb.config import Bench
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            paths = Paths(work=d / "w", ws=d / "ws", shared=d / "s", logs=d / "l", tools_bin=d / "b")
+            ctx = Context(corpus=make_corpus(env={"FOO": "1"}), tool="buck2", run_id="r", paths=paths,
+                          bench=Bench([], 1, 1, 60, False), versions_cfg={})
+            argv = Buck2Adapter(ctx).test_argv()
+        self.assertEqual(argv[:7], ["buck2", "test", "--console=simple", "--keep-going", "//...",
+                                    "--exclude", "rbb_inner_test"])
+        self.assertEqual(argv[7], "--")
+        self.assertIn("FOO=1", argv)
+        self.assertIn("CI=true", argv)
+        self.assertEqual(argv[8::2], ["--env"] * len(argv[8::2]))
+
 
 if __name__ == "__main__":
     unittest.main()

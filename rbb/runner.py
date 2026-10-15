@@ -184,6 +184,17 @@ class Runner:
                           extra={"state_bytes": self.state_sizes()})
         finally:
             self.services.stop_all()
+            try:
+                self.adapter.wipe_local()   # stops daemons (bazel, buck2, sccache)
+            except Exception:
+                pass
+            if not os.environ.get("RBB_KEEP_WORK"):
+                # Build state is large and every result is already in out_dir.
+                from .adapters.base import rm
+                try:
+                    rm(self.work_root / self.run_id / self.corpus.name / self.tool)
+                except Exception as e:
+                    print(f"warning: could not delete work dir: {e}", flush=True)
 
     def scenario_cold(self, commits: list[str]) -> None:
         for i in range(self.bench.cold_samples):

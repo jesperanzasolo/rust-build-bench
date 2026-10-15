@@ -236,9 +236,12 @@ class GenBuck2Test(unittest.TestCase):
 
     def test_fixups(self):
         self.assertEqual(self.cov["crates_with_fixups"], ["libz-sys", "serde"])
-        self.assertIn("buildscript.run = true\n", self.files["third-party/fixups/serde/fixups.toml"])
+        serde = tomllib.loads(self.files["third-party/fixups/serde/fixups.toml"])
+        self.assertEqual(serde["buildscript"]["run"], {
+            "rustc_link_lib": True, "rustc_link_search": True,
+            "env": {"DEBUG": "true", "NUM_JOBS": "1", "OPT_LEVEL": "1", "PROFILE": "debug"}})
         libz = tomllib.loads(self.files["third-party/fixups/libz-sys/fixups.toml"])
-        self.assertEqual(libz["buildscript"]["run"], {"rustc_link_lib": True, "rustc_link_search": True})
+        self.assertTrue(libz["buildscript"]["run"]["rustc_link_lib"])
 
     def test_library(self):
         a = self.app

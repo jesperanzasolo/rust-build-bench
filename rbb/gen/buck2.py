@@ -677,12 +677,21 @@ def resolver_narrowing(an: Analysis) -> dict[str, dict[str, dict[str, str]]]:
     return {k: dict(sorted(v.items())) for k, v in sorted(out.items())}
 
 
+def _buildscript_env(profile_env: dict[str, str]) -> dict[str, str]:
+    """Cargo's build-script variables that buck2's buildscript_run leaves unset.
+    https://doc.rust-lang.org/cargo/reference/environment-variables.html"""
+    return {"NUM_JOBS": "1", "PROFILE": "debug", "DEBUG": profile_env.get("DEBUG", "true"),
+            "OPT_LEVEL": profile_env.get("OPT_LEVEL", "0")}
+
+
 def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
-                       extra_srcs: dict[str, list[str]] | None = None) -> dict[str, str]:
+                       extra_srcs: dict[str, list[str]] | None = None,
+                       profile_env: dict[str, str] | None = None) -> dict[str, str]:
     """fixups/<crate>/fixups.toml for third-party crates that have a build script (run it,
     the generic best-effort choice), a Cargo profile override, or files read by include*!
     (from `scan_vendor_includes`)."""
     extra_srcs = extra_srcs or {}
+    profile_env = profile_env or {}
     narrowing = resolver_narrowing(an)
     member_ids = set(an.member_ids.values())
     tp_pkgs: dict[str, list[dict]] = {}
@@ -707,12 +716,15 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
         if flags:
             lines += ["# Cargo [profile] package override.", f"rustc_flags = {_tval(flags)}"]
         if has_bs:
-            lines += ["# Generic choice: run the build script, as Cargo does."]
-            if links:
-                lines += ["# The crate declares `links`, so forward its native link directives.",
-                          "[buildscript.run]", "rustc_link_lib = true", "rustc_link_search = true"]
-            else:
-                lines += ["buildscript.run = true"]
+            # Generic choice: run the build script as Cargo does. Cargo always honours
+            # cargo:rustc-link-lib/-search (e.g. psm compiles and links a static lib
+            # without declaring `links`) and sets these variables, which the prelude's
+            # buildscript_run does not (tikv-jemalloc-sys requires NUM_JOBS).
+            lines += ["# Generic choice: run the build script, as Cargo does.",
+                      "[buildscript.run]", "rustc_link_lib = true", "rustc_link_search = true",
+                      "[buildscript.run.env]"]
+            lines += [f"{k} = {_tstr(v)}" for k, v in sorted(_buildscript_env(profile_env).items())]
+            del links
         if narrow:
             # Reindeer's deterministic resolver picks the newest compatibility lane of a
             # broad requirement (">=0.6, <0.8"); pin it to the lane Cargo.lock chose.
@@ -786,6 +798,17 @@ def _profile_flags(p: dict, *, profile_level: bool) -> list[str]:
         elif lto == "thin":
             flags.append("-Clto=thin")
     return flags
+
+
+def _profile_env(flags: list[str]) -> dict[str, str]:
+    """OPT_LEVEL / DEBUG as Cargo would set them for build scripts of this profile."""
+    env = {"OPT_LEVEL": "0", "DEBUG": "false"}
+    for f in flags:
+        if f.startswith("-Copt-level="):
+            env["OPT_LEVEL"] = f.split("=", 1)[1]
+        elif f.startswith("-Cdebuginfo="):
+            env["DEBUG"] = "false" if f.split("=", 1)[1] in ("0", "none") else "true"
+    return env
 
 
 def profile_rustc_flags(ws: Workspace) -> tuple[list[str], dict[str, list[str]], list[str]]:
@@ -1264,7 +1287,7 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
             if p["id"] not in an.member_ids.values():
                 tp_flags[p["name"]] = star_flags + tp_flags.get(p["name"], [])
     fixups = third_party_fixups(an, {n: f for n, f in tp_flags.items() if n not in an.member_ids},
-                                vendor_extra_srcs)
+                                vendor_extra_srcs, _profile_env(base_flags))
     files_out.update(fixups)
     lock = (Path(ws.raw.get("workspace_root") or ws.root) / "Cargo.lock")
     if lock.exists():

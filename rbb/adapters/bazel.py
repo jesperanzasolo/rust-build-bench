@@ -66,7 +66,8 @@ class BazelAdapter(Adapter):
     def versions(self) -> dict[str, str]:
         c = self.ctx
         out = c.capture(["bazel", "--version"], env=self.env()).strip()
-        bazelisk = c.capture(["bazel", "version", "--gnu_format"], env=self.env(), check=False)
+        # `bazel version` (bazelisk) prints "Bazelisk version: vX" before the server's info.
+        bazelisk = c.capture(["bazel", "version"], env=self.env(), check=False)
         v = {
             "bazel": out,
             "rules_rust": str(c.versions_cfg["rules_rust"]["version"]),
@@ -130,6 +131,10 @@ class BazelAdapter(Adapter):
                     env={**self.env(), "CARGO_BAZEL_REPIN": "true"})
         if not r.ok:
             raise RuntimeError(f"bazel crate_universe repin failed; see {r.log_path}")
+        # Evaluate the extensions once more in the steady-state environment (no
+        # CARGO_BAZEL_REPIN), so the timed run does not pay for the env change.
+        ctx.run(["bazel", "query", f"@{gen.CRATES_REPO}//:all", "--output=label"],
+                scenario="sync", step="bazel-warm", env=self.env())
         self.coverage = coverage
         (ctx.paths.logs / "bazel-coverage.json").write_text(json.dumps(coverage, indent=1, sort_keys=True))
 

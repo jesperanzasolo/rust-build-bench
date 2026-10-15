@@ -514,6 +514,13 @@ generated_file_header = """
 _THIRD_PARTY_GITIGNORE = """\
 # From Reindeer's examples/01-intro/third-party/.gitignore. Reindeer also uses this
 # file to drop these paths from vendored checksums.
+#
+# Reindeer applies every .gitignore from the cell root down to third-party/, so the
+# corpus's own rules (e.g. `build/`) would hide crate files such as
+# rustversion's build/build.rs. Re-include all vendored files for Reindeer only
+# ("reindeer:" lines are read by Reindeer, ignored by git), then apply the
+# exclusions below.
+reindeer:!vendor/**
 .cargo
 target
 

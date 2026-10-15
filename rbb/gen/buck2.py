@@ -679,8 +679,10 @@ def resolver_narrowing(an: Analysis) -> dict[str, dict[str, dict[str, str]]]:
 
 def _buildscript_env(profile_env: dict[str, str]) -> dict[str, str]:
     """Cargo's build-script variables that buck2's buildscript_run leaves unset.
-    https://doc.rust-lang.org/cargo/reference/environment-variables.html"""
-    return {"NUM_JOBS": "1", "PROFILE": "debug", "DEBUG": profile_env.get("DEBUG", "true"),
+    https://doc.rust-lang.org/cargo/reference/environment-variables.html
+    NUM_JOBS is Cargo's job count (the machine's CPUs by default)."""
+    return {"NUM_JOBS": profile_env.get("NUM_JOBS", "1"), "PROFILE": "debug",
+            "DEBUG": profile_env.get("DEBUG", "true"),
             "OPT_LEVEL": profile_env.get("OPT_LEVEL", "0")}
 
 
@@ -1016,7 +1018,7 @@ def _export_label(pkgs: dict[str, BuckPackage], ws: Workspace, path: str) -> str
 def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
              host_triple: str = DEFAULT_HOST_TRIPLE, host_cfg_text: str = DEFAULT_HOST_CFG,
              vendor_extra_srcs: dict[str, list[str]] | None = None,
-             cc_tools: dict[str, str] | None = None
+             cc_tools: dict[str, str] | None = None, num_jobs: int = 1
              ) -> tuple[dict[str, str], dict]:
     """Return ({repo-relative path: text}, coverage) for the whole Buck2 overlay.
 
@@ -1153,7 +1155,7 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
                            if k.startswith("CARGO_PKG_") and k not in ("CARGO_PKG_NAME", "CARGO_PKG_VERSION")}
                 if pkg.links:
                     run_env["CARGO_MANIFEST_LINKS"] = _arg(pkg.links)
-                run_env.update(_buildscript_env(_profile_env(base_flags)))
+                run_env.update(_buildscript_env(dict(_profile_env(base_flags), NUM_JOBS=str(num_jobs))))
                 bp.loads.add('load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")')
                 bp.add("buildscript_run", f"{pkg.name}-build-script-run", {
                     "package_name": pkg.name, "version": pkg.version,
@@ -1287,7 +1289,7 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
             if p["id"] not in an.member_ids.values():
                 tp_flags[p["name"]] = star_flags + tp_flags.get(p["name"], [])
     fixups = third_party_fixups(an, {n: f for n, f in tp_flags.items() if n not in an.member_ids},
-                                vendor_extra_srcs, _profile_env(base_flags))
+                                vendor_extra_srcs, dict(_profile_env(base_flags), NUM_JOBS=str(num_jobs)))
     files_out.update(fixups)
     lock = (Path(ws.raw.get("workspace_root") or ws.root) / "Cargo.lock")
     if lock.exists():

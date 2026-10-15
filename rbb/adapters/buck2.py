@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -131,7 +132,7 @@ class Buck2Adapter(Adapter):
             return gen.generate(ws, ctx.corpus, rust_version, self._endpoint(),
                                 host_triple=host_triple, host_cfg_text=host_cfg,
                                 vendor_extra_srcs=gen.scan_vendor_includes(tp_dir / "vendor"),
-                                cc_tools=cc_tools)
+                                cc_tools=cc_tools, num_jobs=os.cpu_count() or 1)
 
         files, coverage = generate()
         lock_seed = files.pop(gen.LOCK_SEED_PATH, None)

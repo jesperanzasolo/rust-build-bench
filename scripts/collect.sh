@@ -20,7 +20,7 @@ src="results/$RUN_ID"
 if [ "$NAME" = all ]; then
   (cd "$src" && find . -type f -print0) > "$tmp/.files"
 else
-  (cd "$src" && find . -type f -path "*/$NAME/*" -print0; find . -maxdepth 1 -type f -print0) > "$tmp/.files"
+  (cd "$src" && find . -type f -path "*/$NAME/*" -print0; find . -maxdepth 1 -type f -name "job-$NAME.log" -print0) > "$tmp/.files"
 fi
 while IFS= read -r -d '' f; do
   mkdir -p "$dest/$(dirname "$f")"

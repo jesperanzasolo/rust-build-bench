@@ -76,7 +76,11 @@ jobs:
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           fi
       - name: Run
-        run: ./run.sh "$RUN_ID" "$CORPORA" "${{ matrix.tool }}" "$BENCH"
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "results/$RUN_ID"
+          ./run.sh "$RUN_ID" "$CORPORA" "${{ matrix.tool }}" "$BENCH" 2>&1 | tee "results/$RUN_ID/job-${{ matrix.tool }}.log"
       - name: Publish
         if: always()
         run: scripts/collect.sh "$RUN_ID" "${{ matrix.tool }}"

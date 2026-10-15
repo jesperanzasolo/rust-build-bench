@@ -70,7 +70,11 @@ def install_one(name: str, spec: dict, bin_dir: Path, opt_dir: Path) -> dict[str
         if "cargo_install" in spec:
             ci = spec["cargo_install"]
             root = opt_dir / f"{name}-{ver}"
-            subprocess.run(["cargo", "install", "--locked", "--git", ci["git"], "--tag",
+            # A fresh machine may have rustup but no default toolchain; build the
+            # tool with an explicit stable toolchain (not the corpus' toolchain).
+            subprocess.run(["rustup", "toolchain", "install", "stable", "--profile", "minimal",
+                            "--no-self-update"], check=True)
+            subprocess.run(["cargo", "+stable", "install", "--locked", "--git", ci["git"], "--tag",
                             ci["tag"].format(version=ver), ci["crate"], "--root", str(root)], check=True)
             for b in bins:
                 _link(root / "bin" / b, bin_dir / b)

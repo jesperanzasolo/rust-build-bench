@@ -386,6 +386,11 @@ def analyze(ws: Workspace, host_cfg: dict[str, set[str]], host_triple: str) -> A
                 kind = dk.get("kind") or "normal"
                 if kind == "dev" and pid not in members:
                     continue
+                # A build-dependency only builds if the crate has a build script; a
+                # published crate may declare build-dependencies with `build = false`.
+                if kind == "build" and not any("custom-build" in t["kind"]
+                                               for t in by_id[pid]["targets"]):
+                    continue
                 if cfg_matches(dk.get("target"), host_cfg, host_triple) and d["pkg"] not in reach:
                     reach.add(d["pkg"])
                     stack.append(d["pkg"])

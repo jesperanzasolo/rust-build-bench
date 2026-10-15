@@ -31,10 +31,14 @@ class Corpus:
     cargo_args: list[str]            # appended to every cargo test invocation, e.g. --all-features
     metadata_args: list[str]         # appended to `cargo metadata` for generators
     description: str = ""
+    toolchain_components: list[str] = dataclasses.field(default_factory=list)  # extra rustup components
 
     @property
     def id(self) -> str:
         return self.name
+
+
+ALL_SCENARIOS = ["cold", "noop", "replay-warm", "replay-fresh", "canary"]
 
 
 @dataclasses.dataclass
@@ -44,17 +48,21 @@ class Bench:
     cold_samples: int
     step_timeout_s: int
     canary: bool
+    fresh_commits: int | None = None   # replay-fresh uses the last N of the window
+    warm_commits: int | None = None    # replay-warm uses the whole window when None
 
 
 def load_bench(path: Path | None = None) -> Bench:
     data = tomllib.loads((path or REPO_ROOT / "bench.toml").read_text())
     b = data.get("bench", {})
     return Bench(
-        scenarios=b.get("scenarios", ["cold", "noop", "replay-warm", "replay-fresh", "canary"]),
+        scenarios=b.get("scenarios", ALL_SCENARIOS),
         noop_samples=int(b.get("noop_samples", 3)),
         cold_samples=int(b.get("cold_samples", 1)),
         step_timeout_s=int(b.get("step_timeout_s", 3 * 3600)),
         canary=bool(b.get("canary", True)),
+        fresh_commits=b.get("fresh_commits"),
+        warm_commits=b.get("warm_commits"),
     )
 
 
@@ -78,6 +86,7 @@ def load_corpus(name_or_path: str) -> Corpus:
         extra_data={k: list(v) for k, v in d.get("extra_data", {}).items()},
         cargo_args=list(d.get("cargo_args", [])),
         metadata_args=list(d.get("metadata_args", [])),
+        toolchain_components=list(d.get("toolchain", {}).get("components", [])),
         description=d.get("description", ""),
     )
 

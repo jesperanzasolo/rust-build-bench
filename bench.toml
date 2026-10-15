@@ -1,0 +1,13 @@
+# Benchmark protocol. Changing anything here changes what results mean, so it is
+# recorded in every result's provenance and noted in CHANGELOG.md.
+
+[bench]
+# Order matters: each scenario starts from the state the previous one left.
+scenarios = ["cold", "noop", "replay-warm", "replay-fresh", "canary"]
+
+cold_samples = 1     # cold builds are long and low-variance relative to their size
+noop_samples = 3     # median reported
+warm_commits = 20    # replay-warm: every commit of the corpus window
+fresh_commits = 10   # replay-fresh: the last 10 commits of the window
+step_timeout_s = 10800
+canary = true

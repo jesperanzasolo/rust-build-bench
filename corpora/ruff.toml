@@ -1,0 +1,35 @@
+# astral-sh/ruff: 55 workspace crates, edition 2024, ~350 third-party crates,
+# heavy insta snapshot + fixture tests, 5 build scripts, 1 proc-macro crate.
+name = "ruff"
+kind = "git"
+repo = "https://github.com/astral-sh/ruff"
+description = "Python linter/formatter and type checker (ty). Test-heavy, snapshot-heavy."
+
+# Tip of the replay window. The window is the N first-parent commits ending here,
+# i.e. N squash-merged PRs as main's CI saw them.
+commit = "d1e1b1f69b511df4385f64b510eeec4da01c1a0e"
+replay_commits = 20
+
+# Mirrors ruff's own CI test job: `cargo nextest run --all-features`.
+cargo_args = ["--all-features"]
+metadata_args = ["--all-features"]
+
+# Mirrors ruff CI's top-level env for the test job (Cargo-only knobs are
+# ignored by non-Cargo tools; see METHODOLOGY.md "Build profile parity").
+[env]
+CARGO_PROFILE_DEV_DEBUG = "line-tables-only"
+
+# Runtime reads that cross crate boundaries (cannot be inferred from Cargo
+# metadata; found by the Bazel/Buck2 bring-up). Only hermetic tools use these.
+[extra_data]
+ruff = ["crates/ruff_linter/resources/**", "crates/ruff_notebook/resources/**"]
+ruff_linter = ["crates/ruff_notebook/resources/**"]
+ruff_mdtest = ["crates/ruff_linter/resources/**"]
+ruff_workspace = ["crates/ruff_linter/resources/**"]
+ty_module_resolver = ["crates/ty_vendored/vendor/**"]
+
+# Correctness canary: change a constant in `upstream` and expect a new
+# integration test in `downstream` (a direct dependent) to fail.
+[canary]
+upstream = "ruff_text_size"
+downstream = "ruff_linter"

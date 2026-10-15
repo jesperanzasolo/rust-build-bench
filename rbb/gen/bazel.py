@@ -501,6 +501,10 @@ def bazelrc(*, output_user_root: str, repository_cache: str, remote_cache: str |
         f"test --test_timeout={TEST_TIMEOUT_S}",
         "# Cargo runs test binaries from the package directory; see rbb_test_launcher.sh.",
         f"test --run_under=//:{LAUNCHER}",
+        "# Tests see the same PATH as under every other tool, so host tools the",
+        "# corpus' tests call (e.g. uv, pinned in tools/versions.toml) resolve the",
+        "# same way. Value is inherited from the harness environment.",
+        "test --test_env=PATH",
     ]
     for k, v in sorted(test_env.items()):
         lines.append(f"test --test_env={k}={v}")

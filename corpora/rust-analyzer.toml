@@ -1,0 +1,27 @@
+# rust-lang/rust-analyzer: 45 workspace crates, expect-test snapshot tests,
+# 4 build scripts, deep salsa-based crate graph (hir-* -> ide-*).
+name = "rust-analyzer"
+kind = "git"
+repo = "https://github.com/rust-lang/rust-analyzer"
+description = "Rust language server. Deep crate graph, many fast unit tests."
+
+commit = "dd5ed69d4b5b26fe7f91013b1d02608cd37ae199"
+replay_commits = 20
+
+# rust-analyzer's CI runs `cargo nextest run --no-fail-fast` on latest stable,
+# with rust-src installed. Stable is not pinned upstream; pin it for the run.
+cargo_args = []
+metadata_args = []
+
+[env]
+RUSTUP_TOOLCHAIN = "1.99.0"
+
+[toolchain]
+components = ["rust-src"]
+
+# test_format_document_range needs a nightly rustfmt and skips itself when
+# none is installed. No toolchain other than the pinned stable is installed.
+
+[canary]
+upstream = "stdx"
+downstream = "ide"

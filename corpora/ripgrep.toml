@@ -9,6 +9,9 @@ commit = "3fce3b5bb0236da2df6d99672afb8a719642eca7"
 replay_commits = 4
 cargo_args = []
 metadata_args = []
+# Fails on the benchmark image for an environment reason (NotFound in a temp
+# dir), under every tool. Not a tool difference.
+skip_tests = ["dir::tests::absolute_parent_anchored"]
 
 [env]
 RUSTUP_TOOLCHAIN = "1.99.0"

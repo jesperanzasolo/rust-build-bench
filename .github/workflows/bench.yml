@@ -1,0 +1,104 @@
+# Runs the benchmark on Namespace runners, one job (one fresh machine) per tool.
+#
+# Start a run by pushing a branch named bench/<anything> whose bench-run.env sets
+# RUN_ID, CORPORA and TOOLS, or with "Run workflow" in the Actions tab.
+# Each job publishes its results to the branch run/<RUN_ID>/<tool> after every
+# (corpus, tool) pair; the report job merges them into run/<RUN_ID>/report.
+name: bench
+on:
+  push:
+    branches: ["bench/**"]
+  workflow_dispatch:
+    inputs:
+      run_id: {description: "run id", required: true}
+      corpora: {description: "comma-separated corpora", default: "ruff,rust-analyzer"}
+      tools: {description: "comma-separated tools", default: "cargo,cargo-sccache,cargo-rail,moon,bazel,buck2"}
+      bench: {description: "protocol file", default: "bench.toml"}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      run_id: ${{ steps.p.outputs.run_id }}
+      corpora: ${{ steps.p.outputs.corpora }}
+      tools: ${{ steps.p.outputs.tools }}
+      bench: ${{ steps.p.outputs.bench }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: p
+        env:
+          IN_RUN_ID: ${{ inputs.run_id }}
+          IN_CORPORA: ${{ inputs.corpora }}
+          IN_TOOLS: ${{ inputs.tools }}
+          IN_BENCH: ${{ inputs.bench }}
+        run: |
+          if [ -f bench-run.env ]; then . ./bench-run.env; fi
+          RUN_ID=${IN_RUN_ID:-$RUN_ID}; CORPORA=${IN_CORPORA:-$CORPORA}
+          TOOLS=${IN_TOOLS:-$TOOLS}; BENCH=${IN_BENCH:-${BENCH:-bench.toml}}
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "corpora=$CORPORA" >> "$GITHUB_OUTPUT"
+          echo "bench=$BENCH" >> "$GITHUB_OUTPUT"
+          echo "tools=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1].split(",")))' "$TOOLS")" >> "$GITHUB_OUTPUT"
+
+  bench:
+    needs: plan
+    name: ${{ matrix.tool }}
+    runs-on: namespace-profile-standard-8
+    timeout-minutes: 1440
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: ${{ fromJSON(needs.plan.outputs.tools) }}
+    env:
+      RUN_ID: ${{ needs.plan.outputs.run_id }}
+      CORPORA: ${{ needs.plan.outputs.corpora }}
+      BENCH: ${{ needs.plan.outputs.bench }}
+      RBB_PUBLISH: "1"
+      RBB_PUBLISH_NAME: ${{ matrix.tool }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Machine
+        run: |
+          nproc; free -g; df -h /; grep -m1 'model name' /proc/cpuinfo; python3 --version
+          git config --global user.name "rust-build-bench"
+          git config --global user.email "rust-build-bench@users.noreply.github.com"
+      - name: rustup
+        run: |
+          if ! command -v rustup >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Run
+        run: ./run.sh "$RUN_ID" "$CORPORA" "${{ matrix.tool }}" "$BENCH"
+      - name: Publish
+        if: always()
+        run: scripts/collect.sh "$RUN_ID" "${{ matrix.tool }}"
+
+  report:
+    needs: [plan, bench]
+    if: always()
+    runs-on: ubuntu-24.04
+    env:
+      RUN_ID: ${{ needs.plan.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Merge per-tool results and report
+        run: |
+          git config --global user.name "rust-build-bench"
+          git config --global user.email "rust-build-bench@users.noreply.github.com"
+          for b in $(git ls-remote --heads origin "run/$RUN_ID/*" | awk '{print $2}' | sed 's#refs/heads/##' | grep -v '/report$'); do
+            git fetch -q origin "$b"
+            git archive FETCH_HEAD "results/$RUN_ID" | tar -x
+          done
+          python3 -m rbb report "results/$RUN_ID"
+          scripts/collect.sh "$RUN_ID" all
+          git push -q -f origin "run/$RUN_ID/all:run/$RUN_ID/report"

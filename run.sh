@@ -39,7 +39,7 @@ for c in "${corpora[@]}"; do
       echo "!!! $c / $t failed" >&2
       status=1
     fi
-    if [ -n "${RBB_PUBLISH:-}" ]; then scripts/collect.sh "$RUN_ID" all || true; fi
+    if [ -n "${RBB_PUBLISH:-}" ]; then scripts/collect.sh "$RUN_ID" "${RBB_PUBLISH_NAME:-all}" || true; fi
   done
 done
 python3 -m rbb report "results/$RUN_ID" || true

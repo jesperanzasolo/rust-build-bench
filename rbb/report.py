@@ -89,12 +89,26 @@ def eligible(s: dict, baseline: dict | None) -> tuple[bool, str]:
     return True, ""
 
 
-def decide(summary: dict) -> dict:
+def load_exclusions(run_dir: Path) -> dict:
+    """results/<run>/exclusions.toml: {corpus: {tool: reason}}. For coverage problems
+    the automatic rules cannot see (a tool that ran different tests). Every entry is
+    printed in the report; the decision is also shown without them."""
+    f = run_dir / "exclusions.toml"
+    if not f.exists():
+        return {}
+    import tomllib
+    return tomllib.loads(f.read_text())
+
+
+def decide(summary: dict, exclusions: dict | None = None) -> dict:
+    exclusions = exclusions or {}
     decisions = {}
     for corpus, tools in summary.items():
         base = tools.get("cargo")
-        elig = {t: s for t, s in tools.items() if eligible(s, base)[0]}
-        ineligible = {t: eligible(s, base)[1] for t, s in tools.items() if t not in elig}
+        excl = exclusions.get(corpus, {})
+        elig = {t: s for t, s in tools.items() if eligible(s, base)[0] and t not in excl}
+        ineligible = {t: (f"excluded: {excl[t]}" if t in excl else eligible(s, base)[1])
+                      for t, s in tools.items() if t not in elig}
         native = {t: s for t, s in elig.items() if s["family"] in CARGO_NATIVE}
         hermetic = {t: s for t, s in elig.items() if s["family"] not in CARGO_NATIVE}
         if not native:
@@ -156,6 +170,28 @@ def render(summary: dict, decision: dict, run_dir: Path) -> str:
         for t, why in d.get("ineligible", {}).items():
             L.append(f"  - Not eligible: `{t}`: {why}")
     L += ["", f"Overall: **{ov}** (rule in METHODOLOGY.md, pre-registered threshold {THRESHOLD:.0%}).", ""]
+    wo = decision.get("without_exclusions")
+    if wo:
+        L += ["Without the documented exclusions (`exclusions.toml`): " + "; ".join(
+            f"{c}: {d['verdict']}" + (f" ({d.get('best_hermetic')} vs {d.get('best_cargo_native')}, "
+                                      f"{d['gap_fresh']:+.0%})" if d.get("gap_fresh") is not None else "")
+            for c, d in wo["per_corpus"].items()) + ".", ""]
+    # Sensitivity: every hermetic tool's fresh-runner gap to the best eligible
+    # Cargo-native tool, whether or not the hermetic tool was eligible.
+    for corpus, d in decision["per_corpus"].items():
+        bn = d.get("best_cargo_native")
+        if not bn:
+            continue
+        bt = summary[corpus][bn]["replay_fresh"]["total_s"]
+        rows = []
+        for t, s_ in sorted(summary[corpus].items()):
+            if s_["family"] in CARGO_NATIVE or not s_["replay_fresh"]["total_s"]:
+                continue
+            gap = 1 - s_["replay_fresh"]["total_s"] / bt
+            why = d.get("ineligible", {}).get(t)
+            rows.append(f"`{t}` {gap:+.0%}" + (f" (not eligible: {why})" if why else ""))
+        if rows:
+            L += [f"Sensitivity, {corpus}: fresh-runner gap to `{bn}` if counted: " + "; ".join(rows) + ".", ""]
     for corpus, tools in summary.items():
         b = tools.get("cargo")
         if b and not b["all_steps_clean"]:
@@ -189,7 +225,10 @@ def main(run_dir: str) -> None:
     if not recs:
         raise SystemExit(f"no results under {rd}")
     summary = summarize(recs)
-    decision = decide(summary)
-    (rd / "summary.json").write_text(json.dumps({"summary": summary, "decision": decision}, indent=1, sort_keys=True))
+    exclusions = load_exclusions(rd)
+    decision = decide(summary, exclusions)
+    decision["without_exclusions"] = decide(summary) if exclusions else None
+    (rd / "summary.json").write_text(json.dumps({"summary": summary, "decision": decision,
+                                                 "exclusions": exclusions}, indent=1, sort_keys=True))
     (rd / "REPORT.md").write_text(render(summary, decision, rd))
     print((rd / "REPORT.md").read_text())

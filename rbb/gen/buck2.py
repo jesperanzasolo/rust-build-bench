@@ -290,6 +290,7 @@ class Analysis:
     filtered: list[str]                        # "member -> dep (target)" dropped for the host
     tp_keys: dict[str, str]                    # third-party package id -> //third-party:<key>
     host_triple: str
+    host_reachable: set[str] = dataclasses.field(default_factory=set)  # package ids built on the host
 
 
 def _lib_crate_name(pkg: dict) -> str:
@@ -350,8 +351,24 @@ def analyze(ws: Workspace, host_cfg: dict[str, set[str]], host_triple: str) -> A
                 key += "-x"
             seen.add(key)
             tp_keys[i] = key
+    # Packages built for the host: members, then normal/build edges whose `target`
+    # matches (plus members' dev-dependencies). Reindeer reports fixups for crates it
+    # never builds as unused, so only these get build-script fixups.
+    reach: set[str] = set(members)
+    stack = list(members)
+    while stack:
+        pid = stack.pop()
+        for d in nodes.get(pid, {}).get("deps", []):
+            for dk in d.get("dep_kinds") or [{"kind": None, "target": None}]:
+                kind = dk.get("kind") or "normal"
+                if kind == "dev" and pid not in members:
+                    continue
+                if cfg_matches(dk.get("target"), host_cfg, host_triple) and d["pkg"] not in reach:
+                    reach.add(d["pkg"])
+                    stack.append(d["pkg"])
     return Analysis(ws=ws, by_id=by_id, member_ids=member_ids, edges=edges,
-                    filtered=sorted(set(filtered)), tp_keys=tp_keys, host_triple=host_triple)
+                    filtered=sorted(set(filtered)), tp_keys=tp_keys, host_triple=host_triple,
+                    host_reachable=reach)
 
 
 # ---------------------------------------------------------------------------
@@ -612,8 +629,9 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
     out: dict[str, str] = {}
     for name in sorted(tp_pkgs):
         versions = tp_pkgs[name]
-        has_bs = any(any("custom-build" in t["kind"] for t in p["targets"]) for p in versions)
-        links = any(p.get("links") for p in versions)
+        built = [p for p in versions if p["id"] in an.host_reachable]
+        has_bs = any(any("custom-build" in t["kind"] for t in p["targets"]) for p in built)
+        links = any(p.get("links") for p in built)
         flags = package_flags.get(name)
         extra = extra_srcs.get(name)
         narrow = narrowing.get(name, {})

@@ -359,6 +359,11 @@ class GenBuck2Test(unittest.TestCase):
         import shutil
         shutil.rmtree(self.root / "third-party")
 
+    def test_fixups_only_for_host_crates(self):
+        self.assertNotIn("winapi", self.cov["crates_with_fixups"])
+        self.assertIn(self.ws.raw["packages"][7]["id"], gen.analyze(
+            self.ws, gen.parse_cfg(gen.DEFAULT_HOST_CFG), gen.DEFAULT_HOST_TRIPLE).host_reachable)
+
     def test_resolver_narrowing(self):
         libz = tomllib.loads(self.files["third-party/fixups/libz-sys/fixups.toml"])
         self.assertEqual(libz["resolver"], {"dependencies": {"cc": {"narrow_to": "^1"}}})

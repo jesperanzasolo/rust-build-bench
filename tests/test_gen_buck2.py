@@ -320,14 +320,20 @@ class GenBuck2Test(unittest.TestCase):
 
     def test_include_outside_package(self):
         s = self.files["crates/skip/BUCK"]
-        # docs/ has no BUCK file, so the root package owns docs/d.md.
-        self.assertIn('        "//:rbb-export-docs_d.md": "docs/d.md",', s)
-        self.assertIn('        "src/lib.rs": "crates/skip/src/lib.rs",', s)
+        # The crate's sources and the outside file are laid out as in the repository by
+        # a rust_filegroup in the root package (so rustc paths stay repo-relative).
+        self.assertIn('    srcs_filegroup = "//:rbb-srcs-crates-skip-skip",', s)
         self.assertIn('    crate_root = "crates/skip/src/lib.rs",', s)
+        self.assertIn('export_file(\n    name = "rbb-export-crates_skip_src_lib.rs",\n    mode = "reference",\n'
+                      '    src = "src/lib.rs",', s)
         self.assertIn('    edition = "2018",', s)
-        d = self.files["BUCK"]
-        self.assertIn('export_file(\n    name = "rbb-export-docs_d.md",', d)
-        self.assertIn('    src = "docs/d.md",', d)
+        root = self.files["BUCK"]
+        self.assertIn('load("@prelude//rust:sources.bzl", "rust_filegroup")', root)
+        self.assertIn('rust_filegroup(\n    name = "rbb-srcs-crates-skip-skip",\n    mapped_srcs = {\n'
+                      '        "//:rbb-export-docs_d.md": "docs/d.md",\n'
+                      '        "//crates/skip:rbb-export-crates_skip_src_lib.rs": "crates/skip/src/lib.rs",\n    },', root)
+        self.assertIn('export_file(\n    name = "rbb-export-docs_d.md",', root)
+        self.assertIn('    src = "docs/d.md",', root)
         self.assertEqual(self.cov["mapped_srcs_targets"], ["//crates/skip:skip"])
 
     def test_include_inside_package_is_a_src(self):

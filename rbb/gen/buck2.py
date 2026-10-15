@@ -907,20 +907,32 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
             got = sources(t, is_bs)
             if got is None:
                 return None
-            root_rel, spec, rs, inside, _outside, mentions = got
-            outside = outside_pkg
+            root_rel, spec, rs, inside, target_outside, mentions = got
+            # common.files_read_outside_package is authoritative for the package; a
+            # target needs the files its own sources include.
+            outside = [o for o in outside_pkg if o in target_outside]
             extra = [f for f in inside if f in files and not _match(f, spec)]
             attrs: dict = {}
-            if outside:
-                # include*! reaches outside the package: lay the crate out as in the
-                # repository so relative include paths resolve inside the srcs tree.
-                mapped = {f: f"{'' if pkg.dir == '.' else pkg.dir + '/'}{f}" for f in sorted(set(rs) | set(extra))}
+            if outside and pkg.dir != ".":
+                # include*! reaches outside the package. Lay the crate's files and the
+                # outside files out as in the repository, file by file (a directory
+                # symlink would break `..` in include paths), in a rust_filegroup owned
+                # by the root package: the prelude remaps rustc paths relative to the
+                # srcs owner's package, so file!() stays repo-relative, as with Cargo.
+                mapped = {}
+                for f in sorted(set(rs) | set(extra)):
+                    full = f"{pkg.dir}/{f}"
+                    mapped[_export_label(pkgs, ws, full)] = full
                 for o in outside:
                     mapped[_export_label(pkgs, ws, o)] = o
-                attrs["mapped_srcs"] = dict(sorted(mapped.items()))
-                attrs["crate_root"] = f"{'' if pkg.dir == '.' else pkg.dir + '/'}{root_rel}"
+                tree = f"rbb-srcs-{_sanitize(pkg.dir)}-{label.split(':', 1)[1]}"
+                pkgs["."].loads.add('load("@prelude//rust:sources.bzl", "rust_filegroup")')
+                pkgs["."].add("rust_filegroup", tree, {
+                    "mapped_srcs": dict(sorted(mapped.items())), "visibility": ["PUBLIC"]}, order=8)
+                attrs["srcs_filegroup"] = _label(".", tree)
+                attrs["crate_root"] = f"{pkg.dir}/{root_rel}"
                 cov["mapped_srcs_targets"].append(label)
-                mdir = pkg.dir if pkg.dir != "." else "."
+                mdir = pkg.dir
             else:
                 srcs = _glob(spec.include, spec.exclude)
                 if extra:

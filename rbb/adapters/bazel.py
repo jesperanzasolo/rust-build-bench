@@ -23,8 +23,8 @@ from ..gen.common import rust_version as corpus_rust_version
 from .base import Adapter, TestRun, rm
 
 _EXECUTED = re.compile(r"Executed (\d+) out of (\d+) tests?: (.*)")
-_STATUS = re.compile(r"^(//\S+|@\S+)\s+(\(cached\)\s+)?(PASSED|FAILED|FLAKY|TIMEOUT|NO STATUS|"
-                     r"FAILED TO BUILD|INCOMPLETE|SKIPPED)\b", re.M)
+_STATUS = re.compile(r"^(//\S+|@\S+)\s+(\(cached\)\s+)?(FAILED TO BUILD|PASSED|FAILED|FLAKY|TIMEOUT|"
+                     r"NO STATUS|INCOMPLETE|SKIPPED)\b", re.M)
 _HOST_TRIPLE = "x86_64-unknown-linux-gnu"
 
 

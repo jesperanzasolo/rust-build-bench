@@ -49,6 +49,7 @@ def make_metadata(root: Path) -> dict:
              _target("extra-tool", ["bin"], f"{r}/crates/core-lib/src/bin/extra.rs", req=["extra"]),
              _target("smoke", ["test"], f"{r}/crates/core-lib/tests/smoke.rs"),
              _target("suite", ["test"], f"{r}/crates/core-lib/tests/suite/main.rs"),
+             _target("shared", ["test"], f"{r}/crates/core-lib/tests/shared.rs"),
              _target("build-script-build", ["custom-build"], f"{r}/crates/core-lib/build.rs"),
          ]},
         {"name": "my-macros", "version": "0.2.0", "id": pid("my-macros", "0.2.0"), "edition": "2018",
@@ -101,7 +102,8 @@ def write_tree(root: Path) -> None:
         "crates/core-lib/src/table.txt": "t\n",
         "crates/core-lib/src/main.rs": "fn main() {}\n",
         "crates/core-lib/src/bin/extra.rs": "fn main() {}\n",
-        "crates/core-lib/tests/smoke.rs": "#[test] fn t() {}\n",
+        "crates/core-lib/tests/smoke.rs": "mod shared;\n#[test] fn t() {}\n",
+        "crates/core-lib/tests/shared.rs": "#[test] fn s() {}\n",
         "crates/core-lib/tests/suite/main.rs": "mod helper;\n",
         "crates/core-lib/tests/suite/helper.rs": "",
         "crates/my-macros/Cargo.toml": '[package]\nname = "my-macros"\nversion = "0.2.0"\n',
@@ -236,15 +238,16 @@ class GenBazelTest(unittest.TestCase):
         self.assertIn('deps = all_crate_deps(normal_dev = True),', b)
         self.assertIn('rust_test(\n    name = "smoke_test",', b)
         self.assertIn('crate_root = "tests/smoke.rs",', b)
+        # smoke.rs declares `mod shared;`, so shared.rs (also a test root) stays in its srcs.
         self.assertIn('srcs = glob(["tests/**/*.rs"], exclude = ["tests/suite/**"], allow_empty = True),', b)
         self.assertIn('crate_root = "tests/suite/main.rs",', b)
-        self.assertIn('srcs = glob(["tests/**/*.rs"], exclude = ["tests/smoke.rs"], allow_empty = True),', b)
+        self.assertIn('srcs = glob(["tests/**/*.rs"], exclude = [\n        "tests/shared.rs",\n        "tests/smoke.rs",\n    ], allow_empty = True),', b)
         self.assertIn('"CARGO_BIN_EXE_core-cli": "$(rootpath :core-cli)",', b)
         self.assertIn('"CARGO_BIN_EXE_core-cli": "../../$(rootpath :core-cli)",', b)
         self.assertIn('"CARGO_MANIFEST_DIR": "%s/crates/core-lib",' % self.root.as_posix(), b)
         self.assertIn('data = [\n        "//:rbb_extra_data_core_lib",\n        ":core-cli",\n        ":rbb_all_files",\n    ],', b)
         self.assertIn('filegroup(\n    name = "rbb_extra_data_core_lib",\n    srcs = glob(["shared/**"], allow_empty = True),', self.files["BUILD.bazel"])
-        self.assertEqual(self.cov["test_targets"], 5)
+        self.assertEqual(self.cov["test_targets"], 6)
 
     def test_proc_macro(self):
         b = self.files["crates/my-macros/BUILD.bazel"]
@@ -297,11 +300,13 @@ class GenBazelTest(unittest.TestCase):
                     "//a:x_test                                       (cached) PASSED in 0.1s\n"
                     "//a:y_test                                                PASSED in 0.2s\n"
                     "//b:z_test                                                FAILED in 0.3s\n"
-                    "Executed 2 out of 3 tests: 2 tests pass and 1 fails locally.\n")
+                    "//b:w_test                                       FAILED TO BUILD\n"
+                    "Executed 2 out of 4 tests: 2 tests pass, 1 fails locally and 1 fails to build.\n")
         c = parse_bazel_test_counts(f.name)
         Path(f.name).unlink()
         self.assertEqual(c["executed"], 2)
-        self.assertEqual(c["total"], 3)
+        self.assertEqual(c["total"], 4)
+        self.assertEqual(c["failed_to_build"], 1)
         self.assertEqual(c["cached"], 1)
         self.assertEqual(c["passed"], 2)
         self.assertEqual(c["failed"], 1)

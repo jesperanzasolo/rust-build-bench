@@ -33,7 +33,7 @@ class BazelAdapter(Adapter):
     family = "hermetic"
     services = ("bazel-remote",)
     generated_paths = (
-        "MODULE.bazel", "MODULE.bazel.lock", ".bazelversion", ".bazelrc",
+        "MODULE.bazel", "MODULE.bazel.lock", ".bazelversion", ".bazelrc", ".bazelignore",
         "BUILD.bazel", "**/BUILD.bazel", gen.LAUNCHER_SCRIPT, gen.CARGO_BAZEL_LOCKFILE,
         "bazel-*",
     )

@@ -39,7 +39,11 @@ class CargoRailAdapter(CargoAdapter):
         # Enrol this checkout in the compiler cache (writes the global rustc wrapper
         # into CARGO_HOME, which lives under `shared`). `cache ready` proves one cold
         # miss and one warm restore and installs rustc-dev when needed.
-        self.ctx.run(["cargo", "rail", "cache", "setup"], scenario="setup", step="cache-setup")
+        # Budget matches the REAPI server's (100 GiB) so neither side evicts first.
+        r = self.ctx.run(["cargo", "rail", "cache", "setup", "--max-size", "100GiB"],
+                         scenario="setup", step="cache-setup")
+        if not r.ok:
+            raise RuntimeError(f"cargo rail cache setup failed; see {r.log_path}")
         r = self.ctx.run(["cargo", "rail", "cache", "ready"], scenario="setup", step="cache-ready")
         if not r.ok:
             raise RuntimeError(f"cargo rail cache ready failed; see {r.log_path}")

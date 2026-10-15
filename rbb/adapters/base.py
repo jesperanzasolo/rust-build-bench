@@ -50,7 +50,7 @@ class Context:
         self.paths = paths
         self.versions_cfg = versions_cfg
         self.services = services
-        for p in (paths.work, paths.shared, paths.logs):
+        for p in (paths.work, paths.shared, paths.logs, paths.shared / "cargo-home"):
             p.mkdir(parents=True, exist_ok=True)
 
     # The environment shared by every tool. Tool-specific additions come from

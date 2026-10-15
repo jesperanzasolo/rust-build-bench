@@ -521,8 +521,10 @@ _THIRD_PARTY_GITIGNORE = """\
 # ("reindeer:" lines are read by Reindeer, ignored by git), then apply the
 # exclusions below.
 reindeer:!vendor/**
-.cargo
-target
+# Anchored: an unanchored `target` would also hide crate directories such as
+# cc's src/target/.
+/.cargo
+/target
 
 vendor/*/target
 vendor/*/Cargo.lock
@@ -540,7 +542,8 @@ vendor/*/.travis.yml
 
 
 def _crate_src_dirs(crate_dir: Path, manifest: Path) -> tuple[str, ...]:
-    """Directories (crate-relative, with trailing "/") holding a target's crate root."""
+    """Directories (crate-relative, with trailing "/") holding the crate root of the lib
+    or a bin. `extra_srcs` applies to those targets, not to the build script."""
     try:
         man = tomllib.loads(manifest.read_text(errors="replace"))
     except tomllib.TOMLDecodeError:
@@ -550,11 +553,6 @@ def _crate_src_dirs(crate_dir: Path, manifest: Path) -> tuple[str, ...]:
     roots.append(lib.get("path", "src/lib.rs"))
     for b in man.get("bin", []) or []:
         roots.append(b.get("path", f"src/bin/{b.get('name', '')}.rs"))
-    build = (man.get("package") or {}).get("build")
-    if isinstance(build, str):
-        roots.append(build)
-    elif build is not False and (crate_dir / "build.rs").exists():
-        roots.append("build.rs")
     out = set()
     for r in roots:
         d = os.path.dirname(r.replace(os.sep, "/"))

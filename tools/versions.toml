@@ -1,0 +1,69 @@
+# Pinned tool versions. Every published result records these plus the sha256 of
+# each installed executable (see results/<run>/provenance.json).
+#
+# Bump policy: versions are bumped only between published runs, in a dedicated
+# commit, and the bump is noted in CHANGELOG.md. Never mix versions within a run.
+
+[rust]
+# The Rust toolchain is NOT pinned here: each corpus uses the toolchain its own
+# rust-toolchain.toml selects, and every tool (including Bazel's rules_rust)
+# is configured to use that same version.
+
+[cargo-nextest]
+version = "0.9.148"
+url = "https://get.nexte.st/{version}/linux"
+format = "tar.gz"
+binaries = ["cargo-nextest"]
+
+[sccache]
+version = "0.18.0"
+url = "https://github.com/mozilla/sccache/releases/download/v{version}/sccache-v{version}-x86_64-unknown-linux-musl.tar.gz"
+format = "tar.gz"
+binaries = ["sccache"]
+
+[cargo-rail]
+version = "0.31.1"
+# The native archive contains the authenticated compiler components the cache needs;
+# its SHA256SUMS file is verified on install.
+url = "https://github.com/loadingalias/cargo-rail/releases/download/v{version}/cargo-rail-x86_64-unknown-linux-gnu.zip"
+sums_url = "https://github.com/loadingalias/cargo-rail/releases/download/v{version}/SHA256SUMS"
+format = "zip"
+keep_dir = true
+binaries = ["cargo-rail"]
+
+[moon]
+version = "2.6.2"
+installer = "https://moonrepo.dev/install/moon.sh"
+binaries = ["moon"]
+
+[bazelisk]
+version = "1.29.0"
+url = "https://github.com/bazelbuild/bazelisk/releases/download/v{version}/bazelisk-linux-amd64"
+format = "bin"
+rename = "bazel"
+binaries = ["bazel"]
+
+[bazel]
+version = "9.3.0"
+
+[rules_rust]
+version = "0.74.0"
+
+[bazel-remote]
+version = "2.6.3"
+url = "https://github.com/buchgr/bazel-remote/releases/download/v{version}/bazel-remote-{version}-linux-x86_64"
+format = "bin"
+rename = "bazel-remote"
+binaries = ["bazel-remote"]
+
+[buck2]
+version = "2026-10-15"
+url = "https://github.com/facebook/buck2/releases/download/{version}/buck2-x86_64-unknown-linux-gnu.zst"
+format = "zst"
+rename = "buck2"
+binaries = ["buck2"]
+
+[reindeer]
+version = "v2026.10.12.00"
+cargo_install = { git = "https://github.com/facebookincubator/reindeer", tag = "{version}", crate = "reindeer" }
+binaries = ["reindeer"]

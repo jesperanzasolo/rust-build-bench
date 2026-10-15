@@ -241,6 +241,7 @@ class GenBazelTest(unittest.TestCase):
         self.assertIn('srcs = glob(["tests/**/*.rs"], exclude = ["tests/smoke.rs"], allow_empty = True),', b)
         self.assertIn('"CARGO_BIN_EXE_core-cli": "$(rootpath :core-cli)",', b)
         self.assertIn('"CARGO_BIN_EXE_core-cli": "../../$(rootpath :core-cli)",', b)
+        self.assertIn('"CARGO_MANIFEST_DIR": "%s/crates/core-lib",' % self.root.as_posix(), b)
         self.assertIn('data = [\n        "//:rbb_extra_data_core_lib",\n        ":core-cli",\n        ":rbb_all_files",\n    ],', b)
         self.assertIn('filegroup(\n    name = "rbb_extra_data_core_lib",\n    srcs = glob(["shared/**"], allow_empty = True),', self.files["BUILD.bazel"])
         self.assertEqual(self.cov["test_targets"], 5)

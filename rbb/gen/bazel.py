@@ -320,8 +320,12 @@ def _in_package_includes(ws: Workspace, pkg: Package) -> list[str]:
                     r = target.relative_to(pkg_dir)
                 except ValueError:
                     continue
-                if target.is_file() and not str(r).endswith(".rs"):
-                    out.add(str(r).replace(os.sep, "/"))
+                rel_s = str(r).replace(os.sep, "/")
+                # .rs files under src/ are already crate srcs; others (examples/*.rs
+                # pulled in as text) must be declared.
+                if target.is_file() and (not rel_s.endswith(".rs")
+                                         or rel_s.split("/", 1)[0] in _NON_LIB_DIRS):
+                    out.add(rel_s)
     return sorted(out)
 
 
@@ -548,6 +552,22 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
             srcs_expr = _glob([root, posixpath.join(posixpath.dirname(root), "build/**/*.rs")])
         loads["@rules_rust//cargo:defs.bzl"].add("cargo_build_script")
         loads[f"@{CRATES_REPO}//:defs.bzl"].add("all_crate_deps")
+        # crate_universe (0.74.0, src/metadata/dependency.rs) drops a third-party
+        # build-dependency from `all_crate_deps(build = True)` when the same crate is
+        # also a dev-dependency but not a normal one. Name those explicitly.
+        def hub_key(d):
+            renamed = d.crate_name != lib_names.get(d.package, d.package.replace("-", "_"))
+            return d.crate_name if renamed else d.package
+
+        lost = [d for d in pkg.ext_deps
+                if "build" in d.kinds and "dev" in d.kinds and "normal" not in d.kinds]
+        b_ext = [Expr("all_crate_deps(build = True)")]
+        b_pm_ext = [Expr("all_crate_deps(build_proc_macro = True)")]
+        for want_pm, dest in ((False, b_ext), (True, b_pm_ext)):
+            keys = sorted({hub_key(d) for d in lost if d.is_proc_macro == want_pm})
+            if keys:
+                loads[f"@{CRATES_REPO}//:defs.bzl"].add("crate_deps")
+                dest.append(Expr(f"crate_deps({_render(keys, 1)})"))
         al = aliases_expr({"build"}, b_alias)
         if al and "aliases(" in al:
             loads[f"@{CRATES_REPO}//:defs.bzl"].add("aliases")
@@ -559,11 +579,11 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
             "crate_name": "build_script_build",
             "crate_root": root,
             "data": [f":{ALL_FILES}"],
-            "deps": _concat(Expr("all_crate_deps(build = True)"), b_deps),
+            "deps": _concat(*b_ext, b_deps),
             "edition": bs.edition,
             "links": pkg.links,
             "pkg_name": pkg.name,
-            "proc_macro_deps": _concat(Expr("all_crate_deps(build_proc_macro = True)"), b_pms),
+            "proc_macro_deps": _concat(*b_pm_ext, b_pms),
             "rustc_env_files": env_files,
             "srcs": srcs_expr,
             "version": pkg.version,

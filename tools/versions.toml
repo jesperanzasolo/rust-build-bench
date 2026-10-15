@@ -15,6 +15,14 @@ url = "https://get.nexte.st/{version}/linux"
 format = "tar.gz"
 binaries = ["cargo-nextest"]
 
+[uv]
+# Not a build tool: ruff's tests shell out to uv. Pinned to the version ruff's own
+# CI installs, and put first on PATH for every tool so test sets are identical.
+version = "0.13.1"
+url = "https://github.com/astral-sh/uv/releases/download/{version}/uv-x86_64-unknown-linux-gnu.tar.gz"
+format = "tar.gz"
+binaries = ["uv"]
+
 [sccache]
 version = "0.18.0"
 url = "https://github.com/mozilla/sccache/releases/download/v{version}/sccache-v{version}-x86_64-unknown-linux-musl.tar.gz"
@@ -51,7 +59,7 @@ version = "0.74.0"
 
 [bazel-remote]
 version = "2.6.3"
-url = "https://github.com/buchgr/bazel-remote/releases/download/v{version}/bazel-remote-{version}-linux-x86_64"
+url = "https://github.com/buchgr/bazel-remote/releases/download/v{version}/bazel-remote-{version}-linux-amd64"
 format = "bin"
 rename = "bazel-remote"
 binaries = ["bazel-remote"]

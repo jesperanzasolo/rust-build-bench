@@ -1,0 +1,18 @@
+# BurntSushi/ripgrep: 11 workspace crates. Small and fast; used as the smoke-test
+# corpus that validates every adapter end to end before long runs. Not part of
+# the published comparison.
+name = "ripgrep"
+kind = "git"
+repo = "https://github.com/BurntSushi/ripgrep"
+description = "Smoke-test corpus (small workspace, build script, integration tests)."
+commit = "3fce3b5bb0236da2df6d99672afb8a719642eca7"
+replay_commits = 4
+cargo_args = []
+metadata_args = []
+
+[env]
+RUSTUP_TOOLCHAIN = "1.99.0"
+
+[canary]
+upstream = "grep-matcher"
+downstream = "grep-searcher"

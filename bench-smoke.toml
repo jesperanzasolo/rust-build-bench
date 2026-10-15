@@ -1,0 +1,10 @@
+# Smoke protocol: same scenarios, tiny sizes. Validates orchestration only;
+# smoke timings are never published.
+[bench]
+scenarios = ["cold", "noop", "replay-warm", "replay-fresh", "canary"]
+cold_samples = 1
+noop_samples = 1
+warm_commits = 4
+fresh_commits = 2
+step_timeout_s = 3600
+canary = true

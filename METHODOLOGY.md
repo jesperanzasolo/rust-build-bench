@@ -110,9 +110,11 @@ state directory and cache after each scenario.
 
 Untimed: checkout, config generation, wiping state, the replay-fresh seed build.
 
-Timed work a tool needs on every commit is part of its step, even if it is not a
-test: cargo-rail's planning-evidence recording, Bazel's and Buck2's analysis,
-moon's project graph. If CI has to run it, it counts.
+Timed work a tool needs in the PR job is part of its step, even if it is not a
+test: planning, analysis, project-graph construction, cache uploads. Work a tool's
+documentation assigns to the post-merge default-branch job instead (cargo-rail's
+planning-evidence recording) is measured and reported separately as
+`post_merge_s`, not added to PR time.
 
 ## Machines
 

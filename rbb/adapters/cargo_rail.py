@@ -109,14 +109,15 @@ class CargoRailAdapter(CargoAdapter):
                        "--output", str(ev_out), "--", "test", "--workspace", "--locked", "--no-run",
                        *self.ctx.corpus.cargo_args, *self.exclude_args()],
                       scenario=scenario, step=step, env=self.env())
-        cmds.append(rec)
-        if not rec.ok:
-            # Evidence is an optimisation; failing to record it only widens the next
-            # plan. It must not fail the test step.
-            rec.exit_code = 0
+        # Not appended to `cmds`: per cargo-rail's docs the evidence is recorded by the
+        # default-branch (post-merge) job, not by the PR job being timed. Its cost is
+        # reported separately as `post_merge_s`. Failing to record evidence only
+        # widens the next plan, so it never fails the step.
         after = self._status()
         counts = parse_nextest_counts(r.log_path)
         counts["plan"] = plan_info
+        counts["post_merge_s"] = round(rec.wall_s, 3)
+        counts["post_merge_ok"] = rec.ok
         return TestRun(commands=cmds, counts=counts, cache=_delta(before, after))
 
     def wipe_local(self) -> None:

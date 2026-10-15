@@ -104,6 +104,9 @@ def _call(fn: str, attrs: dict, *, positional: list | None = None) -> str:
     return f"{fn}(\n" + "\n".join(lines) + "\n)\n"
 
 
+BAZELIGNORE = (".git", "target")  # each tool has its own checkout, so only these
+
+
 def _glob(include: list[str], exclude: list[str] | None = None) -> Expr:
     parts = [_render(sorted(set(include)), 1)]
     if exclude:
@@ -483,6 +486,9 @@ def bazelrc(*, output_user_root: str, repository_cache: str, remote_cache: str |
         f"common --repository_cache={repository_cache}",
         "common --color=no",
         "common --curses=no",
+        "# No bazel-* convenience symlinks in the workspace: a root package's",
+        "# glob([\"**\"]) would otherwise pick up Bazel's own output tree.",
+        "common --symlink_prefix=/",
         "",
         "# Cache keys must not depend on the caller's PATH or other env.",
         "build --incompatible_strict_action_env",
@@ -1060,6 +1066,8 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
         edition=edition, platform_triples=[host_triple], rust_sha256s=rust_sha256s,
         cargo_bazel_lockfile=CARGO_BAZEL_LOCKFILE if cargo_bazel_lockfile else None)
     files[".bazelversion"] = bazel_version + "\n"
+    # Directories no package may glob into: other tools' state, VCS metadata.
+    files[".bazelignore"] = "".join(f"{d}\n" for d in BAZELIGNORE)
     extra_flags, per_crate_flags = profile_rustc_flags(ws)
     coverage["profile_rustc_flags"] = {"extra": extra_flags, "per_crate": per_crate_flags}
     files[".bazelrc"] = bazelrc(

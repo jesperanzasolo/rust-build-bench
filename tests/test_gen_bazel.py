@@ -151,7 +151,7 @@ class GenBazelTest(unittest.TestCase):
 
     def test_file_set(self):
         self.assertEqual(sorted(self.files), [
-            ".bazelrc", ".bazelversion", "BUILD.bazel", "MODULE.bazel",
+            ".bazelignore", ".bazelrc", ".bazelversion", "BUILD.bazel", "MODULE.bazel",
             "crates/core-lib/BUILD.bazel", "crates/fuzzing/BUILD.bazel", "crates/my-macros/BUILD.bazel",
             "rbb_test_launcher.sh"])
         self.assertEqual(self.files[".bazelversion"], "9.3.0\n")

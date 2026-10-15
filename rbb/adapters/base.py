@@ -153,7 +153,11 @@ class Adapter:
         rm(self.ctx.paths.ws / "target")
 
     def wipe_all(self) -> None:
+        """Local state plus every shared cache, including declared services."""
         self.wipe_local()
+        if self.ctx.services:
+            for s in self.services:
+                self.ctx.services.reset(s)
 
     def state_dirs(self) -> dict[str, Path]:
         return {"target": self.ctx.paths.ws / "target"}

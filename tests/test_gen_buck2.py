@@ -125,9 +125,12 @@ def make_workspace(root: Path) -> dict:
         {"id": anyhow, "features": ["std"], "deps": []},
         {"id": cc, "features": [], "deps": []},
         {"id": tmp, "features": [], "deps": []},
-        {"id": libz, "features": ["libc"], "deps": []},
+        {"id": libz, "features": ["libc"], "deps": [dep("cc", cc, "build")]},
         {"id": win, "features": [], "deps": []},
     ]
+    # A broad requirement, as in dispatch2's `block2 = ">=0.6.1, <0.8.0"`.
+    packages[7]["dependencies"] = [{"name": "cc", "req": ">=0.9, <2", "kind": "build",
+                                    "rename": None, "source": REG}]
     return {"packages": packages, "workspace_members": [app_id, mac_id, skip_id],
             "resolve": {"nodes": nodes, "root": None}, "workspace_root": r, "version": 1}
 
@@ -355,6 +358,14 @@ class GenBuck2Test(unittest.TestCase):
         self.assertIn("anyhow", cov["crates_with_fixups"])
         import shutil
         shutil.rmtree(self.root / "third-party")
+
+    def test_resolver_narrowing(self):
+        libz = tomllib.loads(self.files["third-party/fixups/libz-sys/fixups.toml"])
+        self.assertEqual(libz["resolver"], {"dependencies": {"cc": {"narrow_to": "^1"}}})
+        self.assertTrue(gen._req_is_broad(">=0.6.1, <0.8.0"))
+        self.assertFalse(gen._req_is_broad("^0.6"))
+        self.assertFalse(gen._req_is_broad(">=1.2, <2"))
+        self.assertEqual(gen._lane("0.6.2"), "^0.6")
 
     def test_cfg_eval(self):
         cfg = gen.parse_cfg(gen.DEFAULT_HOST_CFG)

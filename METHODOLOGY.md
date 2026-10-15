@@ -145,6 +145,13 @@ For each corpus:
 If the two corpora disagree, the overall verdict is "mixed" and both are reported.
 The threshold and the metric were fixed before any full run.
 
+**Documented exclusions.** The automatic rules cannot tell when a tool ran
+*different* tests (for example, a generated build config under which some test
+targets do not build, which then finish instantly). Such cases go in
+`results/<run>/exclusions.toml` with the reason. The report prints every
+exclusion, and also shows the verdict without them and each hermetic tool's gap
+whether or not it was eligible, so no exclusion can hide a result.
+
 ## Known limitations
 
 - Each tool is run in one reasonable configuration. Expert tuning can change

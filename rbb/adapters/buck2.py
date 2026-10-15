@@ -125,10 +125,13 @@ class Buck2Adapter(Adapter):
         host_cfg = ctx.capture(["rustc", "--print", "cfg", "--target", host_triple])
         tp_dir = ws_root / gen.THIRD_PARTY
 
+        cc_tools = self._cc_tools()
+
         def generate():
             return gen.generate(ws, ctx.corpus, rust_version, self._endpoint(),
                                 host_triple=host_triple, host_cfg_text=host_cfg,
-                                vendor_extra_srcs=gen.scan_vendor_includes(tp_dir / "vendor"))
+                                vendor_extra_srcs=gen.scan_vendor_includes(tp_dir / "vendor"),
+                                cc_tools=cc_tools)
 
         files, coverage = generate()
         lock_seed = files.pop(gen.LOCK_SEED_PATH, None)
@@ -186,6 +189,18 @@ class Buck2Adapter(Adapter):
         state["files"] = sorted(files)
         state_path.write_text(json.dumps(state, indent=1, sort_keys=True) + "\n")
         self.coverage = coverage
+
+    def _cc_tools(self) -> dict[str, str]:
+        """Absolute paths of the system C toolchain on PATH (see toolchains/BUCK)."""
+        import shutil
+        path = self.ctx.base_env()["PATH"]
+        out = {}
+        for key, exe in (("archiver", "ar"), ("compiler", "gcc"), ("cxx_compiler", "g++"),
+                         ("linker", "g++")):
+            found = shutil.which(exe, path=path)
+            if found:
+                out[key] = found
+        return out
 
     def _host_triple(self) -> str:
         out = self.ctx.capture(["rustc", "-vV"])

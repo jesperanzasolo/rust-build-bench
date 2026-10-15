@@ -992,7 +992,8 @@ def _export_label(pkgs: dict[str, BuckPackage], ws: Workspace, path: str) -> str
 
 def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
              host_triple: str = DEFAULT_HOST_TRIPLE, host_cfg_text: str = DEFAULT_HOST_CFG,
-             vendor_extra_srcs: dict[str, list[str]] | None = None
+             vendor_extra_srcs: dict[str, list[str]] | None = None,
+             cc_tools: dict[str, str] | None = None
              ) -> tuple[dict[str, str], dict]:
     """Return ({repo-relative path: text}, coverage) for the whole Buck2 overlay.
 
@@ -1250,7 +1251,7 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
     files_out: dict[str, str] = {}
     for d, bp in sorted(pkgs.items()):
         files_out["BUCK" if d == "." else f"{d}/BUCK"] = bp.text()
-    files_out.update(toolchain_files(rust_version, base_flags, endpoint))
+    files_out.update(toolchain_files(rust_version, base_flags, endpoint, cc_tools))
     files_out[".buckconfig"] = buckconfig(endpoint)
     files_out[".buckroot"] = ""
     files_out[f"{THIRD_PARTY}/Cargo.toml"] = third_party_manifest(an)
@@ -1414,7 +1415,13 @@ if __name__ == "__main__":
 '''
 
 
-def toolchain_files(rust_version: str, rustc_flags: list[str], endpoint: str | None) -> dict[str, str]:
+DEFAULT_CC_TOOLS = {"archiver": "/usr/bin/ar", "compiler": "/usr/bin/gcc",
+                    "cxx_compiler": "/usr/bin/g++", "linker": "/usr/bin/g++"}
+
+
+def toolchain_files(rust_version: str, rustc_flags: list[str], endpoint: str | None,
+                    cc_tools: dict[str, str] | None = None) -> dict[str, str]:
+    cc = dict(DEFAULT_CC_TOOLS, **(cc_tools or {}))
     if endpoint:
         executor = ("            local_enabled = True,\n"
                     "            remote_enabled = False,\n"
@@ -1433,7 +1440,9 @@ def toolchain_files(rust_version: str, rustc_flags: list[str], endpoint: str | N
 # Rust comes from PATH (rustup), which resolves to the corpus toolchain {rust_version}
 # through the workspace rust-toolchain file. rustc_flags reproduce the Cargo `test`
 # profile of the workspace. C/C++ and linking use the system gcc toolchain, the same
-# `cc` linker Cargo uses on Linux.
+# `cc` linker Cargo uses on Linux. Paths are absolute: the prelude's build-script
+# CC shim (prelude//rust/tools:from_any_dir.py) execs the compiler without a PATH
+# lookup.
 
 load("@prelude//platforms:defs.bzl", "host_configuration")
 load("@prelude//tests:test_toolchain.bzl", "noop_test_toolchain")
@@ -1460,11 +1469,11 @@ system_rust_toolchain(
 
 system_cxx_toolchain(
     name = "cxx",
-    archiver = "ar",
-    compiler = "gcc",
+    archiver = {_sstr(cc["archiver"])},
+    compiler = {_sstr(cc["compiler"])},
     compiler_type = "gcc",
-    cxx_compiler = "g++",
-    linker = "g++",
+    cxx_compiler = {_sstr(cc["cxx_compiler"])},
+    linker = {_sstr(cc["linker"])},
     visibility = ["PUBLIC"],
 )
 

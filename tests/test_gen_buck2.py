@@ -201,6 +201,7 @@ class GenBuck2Test(unittest.TestCase):
         tc = self.files["toolchains/BUCK"]
         self.assertIn('load("@prelude//toolchains:rust.bzl", "system_rust_toolchain")', tc)
         self.assertIn('    rustc_flags = [\n        "-Copt-level=1",\n        "-Cdebuginfo=2",', tc)
+        self.assertIn('    compiler = "/usr/bin/gcc",', tc)
         for name in ("rust", "cxx", "python_bootstrap", "genrule", "test",
                      "remote_test_execution", "execution_platforms", "cargo_test_runner"):
             self.assertIn(f'    name = "{name}",', tc)

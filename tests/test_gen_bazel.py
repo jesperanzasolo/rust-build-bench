@@ -79,7 +79,8 @@ def make_metadata(root: Path) -> dict:
             dep("rng", ext("rand", "0.8.5"), [None]),
             dep("my_macros", pid("my-macros", "0.2.0"), [None]),
             dep("tempfile", ext("tempfile", "3.0.0"), ["dev"]),
-            dep("cc", ext("cc", "1.0.0"), ["build"]),
+            # Both a build- and a dev-dependency: crate_universe drops it from the build map.
+            dep("cc", ext("cc", "1.0.0"), ["build", "dev"]),
         ]},
         {"id": pid("my-macros", "0.2.0"), "features": [], "deps": [dep("quote", ext("quote", "1.0.0"), [None])]},
         {"id": pid("fuzzing", "0.0.0"), "features": [], "deps": [dep("core", pid("core-lib"), [None])]},
@@ -204,7 +205,7 @@ class GenBazelTest(unittest.TestCase):
 
     def test_library(self):
         b = self.files["crates/core-lib/BUILD.bazel"]
-        self.assertIn('load("@crates//:defs.bzl", "aliases", "all_crate_deps")', b)
+
         self.assertIn(textwrap.dedent('''\
             rust_library(
                 name = "core-lib",
@@ -222,7 +223,8 @@ class GenBazelTest(unittest.TestCase):
         b = self.files["crates/core-lib/BUILD.bazel"]
         self.assertIn('load("@rules_rust//cargo:defs.bzl", "cargo_build_script", "cargo_toml_env_vars")', b)
         self.assertIn('cargo_build_script(\n    name = "core-lib_bs",', b)
-        self.assertIn('deps = all_crate_deps(build = True),', b)
+        self.assertIn('deps = all_crate_deps(build = True) + crate_deps(["cc"]),', b)
+        self.assertIn('load("@crates//:defs.bzl", "aliases", "all_crate_deps", "crate_deps")', b)
         self.assertIn('crate_root = "build.rs",', b)
         self.assertIn('pkg_name = "core-lib",', b)
 
@@ -283,6 +285,7 @@ class GenBazelTest(unittest.TestCase):
         s = self.files["rbb_test_launcher.sh"]
         self.assertTrue(s.startswith("#!/usr/bin/env bash\n"))
         self.assertIn('export INSTA_WORKSPACE_ROOT="$root"', s)
+        self.assertIn('cp -RL --link -- "$runfiles/." "$root/"', s)
         self.assertIn('cd "$CARGO_MANIFEST_DIR"', s)
 
     def test_harness_false(self):

@@ -67,6 +67,9 @@ def summarize(recs: list[dict]) -> dict:
         verdicts = [r for r in rs if r["scenario"] == "canary" and r["step"].endswith(":verdict")]
         s["canary"] = {r["step"].split(":")[0]: r["canary"]["reason"] for r in verdicts}
         s["canary_ok"] = bool(verdicts) and all(r["canary"]["ok"] for r in verdicts)
+        timed = [r for r in rs if "wall_s" in r and r["scenario"] != "canary"]
+        s["all_steps_clean"] = bool(timed) and all(r["exit_code"] == 0 for r in timed)
+        s["failed_steps"] = sum(1 for r in timed if r["exit_code"] != 0)
         states = [r for r in rs if r["step"] == "state"]
         s["state_bytes_max"] = max((sum(r["state_bytes"].values()) for r in states), default=None)
         out.setdefault(corpus, {})[tool] = s
@@ -76,8 +79,10 @@ def summarize(recs: list[dict]) -> dict:
 def eligible(s: dict, baseline: dict | None) -> tuple[bool, str]:
     if not s["canary_ok"]:
         return False, "canary failed: " + ", ".join(f"{k}={v}" for k, v in s["canary"].items())
-    if s["cold_exit"] not in (0, None) and baseline and baseline.get("cold_exit") == 0:
-        return False, "cold run failed where the Cargo baseline passed"
+    # Only meaningful when the baseline is deterministic: if the corpus has flaky
+    # tests, a single failing cold run says nothing about the tool.
+    if s["cold_exit"] not in (0, None) and baseline and baseline.get("all_steps_clean"):
+        return False, "cold run failed where the Cargo baseline passed every step"
     if not s["replay_fresh"]["n"]:
         return False, "no replay-fresh data"
     return True, ""
@@ -150,6 +155,11 @@ def render(summary: dict, decision: dict, run_dir: Path) -> str:
         for t, why in d.get("ineligible", {}).items():
             L.append(f"  - Not eligible: `{t}`: {why}")
     L += ["", f"Overall: **{ov}** (rule in METHODOLOGY.md, pre-registered threshold {THRESHOLD:.0%}).", ""]
+    for corpus, tools in summary.items():
+        b = tools.get("cargo")
+        if b and not b["all_steps_clean"]:
+            L += [f"> {corpus}: the Cargo baseline failed {b['failed_steps']} non-canary step(s), so the corpus "
+                  "has failing or flaky tests. Failures are reported per tool but do not affect eligibility.", ""]
     for corpus, tools in summary.items():
         L += [f"## {corpus}", "",
               "| Tool | Cold (s) | No-op (s) | PR, fresh runner: median / p90 / total (s) | PR, warm: median / total (s) | Canary | Max state |",

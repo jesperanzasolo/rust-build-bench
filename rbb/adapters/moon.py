@@ -87,7 +87,8 @@ class MoonAdapter(CargoAdapter):
     # -- execution --------------------------------------------------------------
     def test(self, *, scenario, step, base, head) -> TestRun:
         if base is None:
-            argv = ["moon", "run", ":test", "--on-failure", "continue", "--summary", "detailed"]
+            # `moon run` is `moon exec` with --on-failure=bail; CI semantics need continue.
+            argv = ["moon", "exec", ":test", "--on-failure", "continue", "--summary", "detailed"]
         else:
             argv = ["moon", "ci", ":test", "--base", base, "--head", head]
         r = self.ctx.run(argv, scenario=scenario, step=step, env=self.env())

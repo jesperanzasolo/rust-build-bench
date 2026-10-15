@@ -1037,7 +1037,7 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
     pkgs: dict[str, BuckPackage] = {".": BuckPackage()}
     cov = {"packages": 0, "libraries": 0, "binaries": 0, "build_scripts": [],
            "test_targets": 0, "test_targets_by_kind": {"lib": 0, "bin": 0, "test": 0},
-           "skipped": [], "mapped_srcs_targets": [], "manifest_dir_filegroup_tests": [],
+           "skipped": [], "mapped_srcs_targets": [], "tests_using_manifest_dir": [],
            "host_filtered_deps": an.filtered, "third_party_direct": len(an.tp_keys)}
 
     # Corpus.extra_data: extra files a package's tests read, declared as test resources.
@@ -1175,16 +1175,19 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
             attrs, mdir, mentions = got
             env = _cargo_env(pkg_raw, pkg, crate, mdir)
             env.update(bs_env)
-            use_fg = test and mentions
-            if use_fg:
-                env["CARGO_MANIFEST_DIR"] = f"$(location :{manifest_fg})"
+            if test:
+                # Tests use env!("CARGO_MANIFEST_DIR") to find fixtures, snapshots and
+                # sibling crates at run time (e.g. `../ty_vendored/vendor/typeshed`).
+                # Cargo bakes in the absolute package directory; rustc_action.py makes
+                # path-valued env absolute, so this yields exactly that, with only
+                # Cargo.toml as an input. Tests run locally from the checkout.
+                env["CARGO_MANIFEST_DIR"] = "$(source Cargo.toml)/.."
             attrs.update({"crate": crate, "edition": t.edition, "env": dict(sorted(env.items())),
                           "features": pkg.features, "rustc_flags": extra_flags + bs_flags})
-            return attrs, use_fg
+            return attrs, test and mentions
 
         def add_test(t: Target, kind: str, wrapper: str, crate: str, deps_kinds: set[str], self_lib: bool,
                      extra_env: dict[str, str] | None = None, proc_macro: bool = False):
-            nonlocal manifest_fg_needed
             label = _label(pkg.dir, wrapper)
             if pkg.name in excluded:
                 cov["skipped"].append({"target": label, "reason": "package excluded by corpus"})
@@ -1200,8 +1203,7 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
                 cov["skipped"].append({"target": label, "reason": "crate root outside package"})
                 return
             if use_fg:
-                manifest_fg_needed = True
-                cov["manifest_dir_filegroup_tests"].append(label)
+                cov["tests_using_manifest_dir"].append(label)
             deps, named = dep_labels(pkg.name, deps_kinds, self_lib, pkg)
             framework = harness.get((kind, t.name if kind != "lib" else crate), True)
             if extra_env:
@@ -1209,12 +1211,8 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
             if proc_macro:
                 attrs["rustc_flags"] = attrs["rustc_flags"] + ["--extern=proc_macro"]
             inner = f"{wrapper}-inner"
-            # Resources are runtime inputs: the manifest-dir filegroup baked into the
-            # binary by env!("CARGO_MANIFEST_DIR") must exist when the test runs, also
-            # after the compile came from the cache.
+            # Corpus.extra_data: declared runtime inputs of the test.
             resources = list(extra_data.get(pkg.name, []))
-            if use_fg:
-                resources.append(f":{manifest_fg}")
             bp.add("rust_test", inner, {**attrs, "deps": deps, "named_deps": named,
                                         "framework": None if framework else False,
                                         "resources": sorted(resources),
@@ -1298,7 +1296,7 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
     cov["skipped"].sort(key=lambda s: s["target"])
     cov["build_scripts"].sort()
     cov["mapped_srcs_targets"].sort()
-    cov["manifest_dir_filegroup_tests"].sort()
+    cov["tests_using_manifest_dir"].sort()
     cov["rust_version"] = rust_version
     cov["toolchain_rustc_flags"] = base_flags
     return dict(sorted(files_out.items())), cov

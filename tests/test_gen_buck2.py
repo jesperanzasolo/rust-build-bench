@@ -296,10 +296,10 @@ class GenBuck2Test(unittest.TestCase):
         self.assertIn('"//third-party:tempfile"', cli)
         self.assertIn('"//crates/app:app"', cli)
         self.assertIn('    labels = ["rbb_inner_test"],', cli)
-        # env!("CARGO_MANIFEST_DIR") in the test: point it at the package tree.
-        self.assertIn('"CARGO_MANIFEST_DIR": "$(location :app-manifest-dir)"', cli)
-        self.assertIn('":app-manifest-dir"', cli.split("resources = ")[1])
-        self.assertIn('"//crates/app:rbb-extra-data-app-0"', cli)
+        # Tests see the absolute package directory, as under Cargo.
+        self.assertIn('"CARGO_MANIFEST_DIR": "$(source Cargo.toml)/..",', cli)
+        self.assertIn('    resources = ["//crates/app:rbb-extra-data-app-0"],', cli)
+        self.assertIn("//crates/app:cli-test", self.cov["tests_using_manifest_dir"])
         suite = a.split('rust_test(\n    name = "suite-test-inner",')[1].split("\n)\n")[0]
         self.assertIn('glob(["tests/**/*.rs"])', suite)
         self.assertIn('    crate_root = "tests/suite/main.rs",', suite)

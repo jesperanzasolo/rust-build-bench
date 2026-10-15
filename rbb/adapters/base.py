@@ -191,10 +191,28 @@ class Services:
 
 
 def rm(path: Path) -> None:
+    """Delete a file or tree, including read-only trees (Bazel writes its output
+    base read-only). Raises if anything is left: a wipe that silently keeps state
+    would make cold and fresh-runner numbers look better than they are."""
+    path = Path(path)
     if path.is_symlink() or path.is_file():
         path.unlink(missing_ok=True)
-    elif path.exists():
-        shutil.rmtree(path, ignore_errors=True)
+        return
+    if not path.exists():
+        return
+
+    def onexc(func, p, _exc):
+        parent = os.path.dirname(p)
+        for target in (parent, p):
+            try:
+                os.chmod(target, 0o700)
+            except OSError:
+                pass
+        func(p)
+
+    shutil.rmtree(path, onexc=onexc)
+    if path.exists():
+        raise RuntimeError(f"failed to delete {path}")
 
 
 _NEXTEST_SUMMARY = re.compile(

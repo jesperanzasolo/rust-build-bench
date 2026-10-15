@@ -1,6 +1,6 @@
 """rust-build-bench: a tool-agnostic benchmark for Rust monorepo build/test tooling.
 
-Only the Python standard library is used so the harness runs anywhere Python 3.11+
+Only the Python standard library is used so the harness runs anywhere Python 3.12+
 is available, without a package install step that could perturb measurements.
 """
 

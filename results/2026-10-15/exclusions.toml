@@ -1,0 +1,5 @@
+# Documented exclusions for run 2026-10-15 (see METHODOLOGY.md, "Documented exclusions").
+# The report also shows the verdict without these.
+
+[rust-analyzer]
+bazel = "14 of 43 test targets fail to build or run under the generated rules_rust config (crate_universe returns no dependency map for 5 lib/* crates; tests read files across the repository at run time), against 6 failing tests under Cargo. Its times are for less work."

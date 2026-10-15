@@ -110,6 +110,10 @@ state directory and cache after each scenario.
 
 Untimed: checkout, config generation, wiping state, the replay-fresh seed build.
 
+Timed work a tool needs on every commit is part of its step, even if it is not a
+test: cargo-rail's planning-evidence recording, Bazel's and Buck2's analysis,
+moon's project graph. If CI has to run it, it counts.
+
 ## Machines
 
 One run of one tool owns one machine: same shape for all tools (Namespace devbox

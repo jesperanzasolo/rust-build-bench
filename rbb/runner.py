@@ -156,6 +156,8 @@ class Runner:
         return time.perf_counter() - t0
 
     def _step(self, scenario: str, step: str, *, base: str | None, head: str, extra: dict | None = None) -> dict:
+        # One fresh log per step, so a step's log holds exactly that step's commands.
+        self.ctx.log_path(scenario, step).unlink(missing_ok=True)
         checkout(self.paths.ws, head)
         sync_s = self._sync()
         run = self.adapter.test(scenario=scenario, step=step, base=base, head=head)
@@ -233,13 +235,13 @@ class Runner:
         self._verdict(rec, True)
 
     def _verdict(self, rec: dict, expect_failure: bool) -> None:
-        text = ""
+        text, seen = "", set()
         for c in rec.get("commands", []):
             if c.get("log"):
                 p = self.out_dir / c["log"]
-                if p.exists():
-                    # Only the latest invocation in an appended log belongs to this step.
-                    text += p.read_text(errors="replace").rsplit("\n$ (cd ", 1)[-1]
+                if p.exists() and str(p) not in seen:
+                    seen.add(str(p))
+                    text += p.read_text(errors="replace")
         v = canary_verdict(text, rec["exit_code"], expect_failure)
         self.emit("canary", rec["step"] + ":verdict", commit=rec["commit"], base=rec["base"], run=None,
                   extra={"canary": v, "expect_failure": expect_failure})

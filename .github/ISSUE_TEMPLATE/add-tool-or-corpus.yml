@@ -1,0 +1,29 @@
+name: Add a tool or a corpus
+description: Propose a build tool or a Rust repository to add to the benchmark.
+labels: ["proposal"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What to add
+      options: [Tool, Corpus]
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Name and link
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it belongs in the benchmark
+      description: For a tool, what it does differently from the tools already measured. For a corpus, what shape of workspace it adds (size, crate graph, test style).
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Setup notes
+      description: How the tool is configured for CI, or which commit and test command the corpus should use. See CONTRIBUTING.md.

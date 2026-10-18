@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use these results or the harness, please cite it as below."
+type: software
+title: "rust-build-bench: a reproducible benchmark of Rust monorepo build and test tools"
+abstract: >-
+  Replays real merged commits of large Rust workspaces through Cargo, sccache,
+  cargo-rail, moon, Bazel and Buck2, measures pull-request CI time on fresh and
+  warm runners, and checks with a planted upstream change that no tool reports
+  a stale test result.
+authors:
+  - family-names: Esperanza
+    given-names: Jonathan
+repository-code: "https://github.com/jesperanzasolo/rust-build-bench"
+license:
+  - MIT
+  - Apache-2.0
+version: "0.1.0"
+date-released: "2026-10-15"
+keywords:
+  - rust
+  - benchmark
+  - build systems
+  - continuous integration
+  - cargo
+  - bazel
+  - buck2

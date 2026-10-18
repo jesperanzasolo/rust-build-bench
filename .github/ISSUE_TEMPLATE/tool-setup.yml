@@ -1,0 +1,37 @@
+name: Improve a tool's setup
+description: A tool is configured in a way its documentation or maintainers would not recommend.
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Adapter improvements apply to the next run, never retroactively to
+        published numbers (see METHODOLOGY.md).
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Tool
+      options: [cargo, cargo-sccache, cargo-rail, moon, bazel, buck2]
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong with the current setup
+      description: Point to the adapter or generated config (rbb/adapters, rbb/gen) and, if possible, a log from a published run.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: What the setup should be
+      description: Link to the tool's documentation or a real project that does it this way.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Fairness
+      options:
+        - label: The change keeps the same test scope as every other tool (same crates, features and skipped tests).
+          required: true

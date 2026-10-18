@@ -88,7 +88,7 @@ jobs:
         run: |
           nproc; free -g; df -h / /mnt 2>/dev/null; grep -m1 'model name' /proc/cpuinfo; python3 --version
           git config --global user.name "Jonathan Esperanza"
-          git config --global user.email "jonathanesperanza67@gmail.com"
+          git config --global user.email "9872176+jesperanzasolo@users.noreply.github.com"
           # Work on whichever disk has the most free space.
           root=$(df --output=avail,target / /mnt 2>/dev/null | tail -n +2 | sort -n | tail -1 | awk '{print $2}')
           if [ "$root" != "/" ]; then sudo mkdir -p "$root/rbb" && sudo chown "$(id -u):$(id -g)" "$root/rbb"; w="$root/rbb"; else w="$HOME"; fi
@@ -123,7 +123,7 @@ jobs:
       - name: Merge per-tool results and report
         run: |
           git config --global user.name "Jonathan Esperanza"
-          git config --global user.email "jonathanesperanza67@gmail.com"
+          git config --global user.email "9872176+jesperanzasolo@users.noreply.github.com"
           for b in $(git ls-remote --heads origin "run/$RUN_ID/*" | awk '{print $2}' | sed 's#refs/heads/##' | grep -v -E '/(report|all)$' | sort); do
             git fetch -q origin "$b"
             git archive FETCH_HEAD "results/$RUN_ID" | tar -x

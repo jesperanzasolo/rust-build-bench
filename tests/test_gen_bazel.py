@@ -361,8 +361,18 @@ class GenBazelFixesTest(unittest.TestCase):
         self.assertEqual(self.ws.registry_shadowed(), {"my-macros"})
         b = self.files["crates/my-macros/BUILD.bazel"]
         self.assertNotIn("all_crate_deps(", b.split("load(")[-1].split("\n", 1)[1])
-        self.assertIn('"@crates//:quote-1.0.0"', b)
         self.assertIn("all_crate_deps(normal = True)", self.files["crates/core-lib/BUILD.bazel"])
+
+    def test_shadow_only_deps_get_spec_hub(self):
+        # quote is used only by the shadowed member my-macros.
+        self.assertEqual(gen.shadow_only_deps(self.ws), {("quote", "1.0.0"): []})
+        b = self.files["crates/my-macros/BUILD.bazel"]
+        self.assertIn('"@crates_rbb_shadow//:quote"', b)
+        m = self.files["MODULE.bazel"]
+        self.assertIn('package = "quote"', m)
+        self.assertIn('version = "=1.0.0"', m)
+        self.assertIn('crate.from_specs(', m)
+        self.assertIn('use_repo(crate, "crates_rbb_shadow")', m)
 
     def test_skip_binaries(self):
         b = self.files["crates/core-lib/BUILD.bazel"]

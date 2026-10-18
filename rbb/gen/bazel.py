@@ -239,6 +239,43 @@ def _ws_dep_platforms(ws: Workspace) -> dict[tuple[str, str, str], list[str | No
     return out
 
 
+SHADOW_REPO = "crates_rbb_shadow"
+
+
+def shadow_only_deps(ws: Workspace) -> dict[tuple[str, str], list[str]]:
+    """Third-party crates used only by registry-shadowed members (see
+    Workspace.registry_shadowed): crate_universe drops those members, so it never
+    resolves crates nothing else depends on. They get their own `crate.from_specs`
+    hub, pinned to the versions and features of the workspace resolve.
+    {(name, version): resolved features}."""
+    shadowed = ws.registry_shadowed()
+    if not shadowed:
+        return {}
+    raw = ws.raw
+    by_id = {p["id"]: p for p in raw["packages"]}
+    members = set(raw["workspace_members"])
+    nodes = {n["id"]: n for n in (raw.get("resolve") or {}).get("nodes", [])}
+    shadow_ids = {pid for pid in members if by_id[pid]["name"] in shadowed}
+    seen: set[str] = set()
+    stack = [d["pkg"] for pid in members - shadow_ids for d in nodes.get(pid, {}).get("deps", [])
+             if d["pkg"] not in members]
+    while stack:
+        pid = stack.pop()
+        if pid in seen:
+            continue
+        seen.add(pid)
+        stack += [d["pkg"] for d in nodes.get(pid, {}).get("deps", []) if d["pkg"] not in members]
+    out: dict[tuple[str, str], list[str]] = {}
+    for pid in sorted(shadow_ids):
+        for d in nodes.get(pid, {}).get("deps", []):
+            dep = d["pkg"]
+            if dep in members or dep in seen:
+                continue
+            p = by_id[dep]
+            out[(p["name"], p["version"])] = sorted(nodes.get(dep, {}).get("features", []))
+    return out
+
+
 def _third_party_affecting_features(ws: Workspace, pkg: Package) -> set[str]:
     """Features of `pkg` whose expansion enables a third-party dependency or a
     third-party crate feature (`dep:x`, `x/f`, `x?/f`, implicit optional-dep features)."""
@@ -440,7 +477,8 @@ def module_bazel(ws: Workspace, *, rust_version: str, rules_rust_version: str,
                  edition: str, platform_triples: list[str],
                  rust_sha256s: dict[str, str] | None = None,
                  cargo_bazel_lockfile: str | None = CARGO_BAZEL_LOCKFILE,
-                 rules_shell_version: str = "0.6.1") -> str:
+                 rules_shell_version: str = "0.6.1",
+                 shadow_specs: dict[tuple[str, str], list[str]] | None = None) -> str:
     manifests = sorted({_label(p.dir, "Cargo.toml") for p in ws.members()} | {"//:Cargo.toml"})
     sha = dict(sorted((rust_sha256s or {}).items()))
     out = [HEADER, _call("module", {"name": "rbb_corpus", "version": "0.0.0"})]
@@ -472,6 +510,15 @@ def module_bazel(ws: Workspace, *, rust_version: str, rules_rust_version: str,
         attrs["lockfile"] = f"//:{cargo_bazel_lockfile}"
     out.append(_call("crate.from_cargo", attrs))
     out.append(f'use_repo(crate, "{CRATES_REPO}")\n')
+    if shadow_specs:
+        out.append("\n# Crates only registry-shadowed members use (crate_universe drops those\n"
+                   "# members from the hub above), pinned to the workspace resolve.\n")
+        for (name, version), feats in sorted(shadow_specs.items()):
+            out.append(_call("crate.spec", {"default_features": False, "features": feats,
+                                            "package": name, "version": f"={version}"}))
+        out.append(_call("crate.from_specs", {"name": SHADOW_REPO, "host_tools": f"@{HOST_TOOLS_REPO}",
+                                              "supported_platform_triples": sorted(platform_triples)}))
+        out.append(f'use_repo(crate, "{SHADOW_REPO}")\n')
     return "".join(out)
 
 
@@ -601,8 +648,10 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
             kind = {"normal": "normal", "proc_macro": "normal", "normal_dev": "dev",
                     "proc_macro_dev": "dev", "build": "build", "build_proc_macro": "build"}[f]
             want.add((kind, f.startswith("proc_macro") or f == "build_proc_macro"))
-        return sorted({f"@{CRATES_REPO}//:{d.package}-{d.version}" for d in pkg.ext_deps
-                       for k in d.kinds if (k, d.is_proc_macro) in want})
+        hub = ctx.get("shadow_hub", set())
+        return sorted({(f"@{SHADOW_REPO}//:{d.package}" if (d.package, d.version) in hub
+                        else f"@{CRATES_REPO}//:{d.package}-{d.version}")
+                       for d in pkg.ext_deps for k in d.kinds if (k, d.is_proc_macro) in want})
 
     abs_pkg = (ws.root / pkg.dir).resolve().as_posix() if pkg.dir != "." else ws.root.resolve().as_posix()
     # Compile-time CARGO_MANIFEST_DIR is the package's real directory for every crate,
@@ -647,10 +696,13 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
         if shadow:
             kmap = {"normal": "normal", "dev": "dev", "build": "build"}
             fp_aliases = dict(fp_aliases)
+            hub = ctx.get("shadow_hub", set())
             for d in pkg.ext_deps:
                 if d.kinds & {kmap[k] for k in kinds if k in kmap} and \
                         d.crate_name != lib_names.get(d.package, d.package.replace("-", "_")):
-                    fp_aliases[f"@{CRATES_REPO}//:{d.package}-{d.version}"] = d.crate_name
+                    lbl = (f"@{SHADOW_REPO}//:{d.package}" if (d.package, d.version) in hub
+                           else f"@{CRATES_REPO}//:{d.package}-{d.version}")
+                    fp_aliases[lbl] = d.crate_name
             flags = []
         if flags:
             parts.append(f"aliases({', '.join(flags)})")
@@ -1049,6 +1101,7 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
         "ws_dep_platforms": _ws_dep_platforms(ws),
         "lib_target": {p.name: p.name for p in members},
         "shadowed": ws.registry_shadowed(),
+        "shadow_hub": set(shadow_only_deps(ws)),
         "dropped_features": {},
         "filegroups": {},          # pkg dir -> {filegroup name: [globs]}
         "outside_labels": {},      # pkg name -> [labels]
@@ -1116,7 +1169,8 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
     files["MODULE.bazel"] = module_bazel(
         ws, rust_version=rust_version, rules_rust_version=rules_rust_version,
         edition=edition, platform_triples=[host_triple], rust_sha256s=rust_sha256s,
-        cargo_bazel_lockfile=CARGO_BAZEL_LOCKFILE if cargo_bazel_lockfile else None)
+        cargo_bazel_lockfile=CARGO_BAZEL_LOCKFILE if cargo_bazel_lockfile else None,
+        shadow_specs=shadow_only_deps(ws))
     files[".bazelversion"] = bazel_version + "\n"
     # Directories no package may glob into: other tools' state, VCS metadata.
     files[".bazelignore"] = "".join(f"{d}\n" for d in BAZELIGNORE)

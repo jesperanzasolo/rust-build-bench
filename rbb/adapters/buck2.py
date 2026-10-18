@@ -230,6 +230,7 @@ class Buck2Adapter(Adapter):
     def test(self, *, scenario, step, base, head) -> TestRun:
         # The same command for every scenario: Buck2 computes what changed from file
         # contents and its own (in-memory and remote) caches, not from a git base.
+        (self.ctx.paths.ws / "target").mkdir(exist_ok=True)   # as Cargo creates it
         r = self.ctx.run(self.test_argv(), scenario=scenario, step=step, env=self.env())
         text = Path(r.log_path).read_text(errors="replace") if r.log_path else ""
         # measure.run appends to the step log; parse only this invocation's section.

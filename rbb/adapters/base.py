@@ -68,8 +68,9 @@ class Context:
             "PATH": f"{self.paths.tools_bin}:{self.paths.shared / 'cargo-home' / 'bin'}:{os.environ.get('PATH', '')}",
         }
         # rustup must stay global (toolchains are downloads, shared across tools).
-        if "RUSTUP_HOME" in os.environ:
-            env["RUSTUP_HOME"] = os.environ["RUSTUP_HOME"]
+        # Always explicit: tools that clear HOME for tests (Bazel) would otherwise
+        # make rustup report the pinned toolchain as not installed.
+        env["RUSTUP_HOME"] = os.environ.get("RUSTUP_HOME") or str(Path.home() / ".rustup")
         env.update(self.corpus.env)
         return env
 

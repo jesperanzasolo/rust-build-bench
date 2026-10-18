@@ -721,7 +721,9 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
         raw_extra = extra_srcs.get(name) or {}
         if isinstance(raw_extra, list):     # same files for every version
             raw_extra = {p["version"]: raw_extra for p in versions}
-        ver_extra = {p["version"]: raw_extra.get(p["version"], []) for p in versions}
+        # Only crates Reindeer builds for the host: it reports any glob in a fixup for
+        # a crate it never builds as matching nothing (rust-analyzer's embedded-io).
+        ver_extra = {p["version"]: raw_extra.get(p["version"], []) for p in built}
         extra_lists = [tuple(v) for v in ver_extra.values()]
         uniform = len(set(extra_lists)) <= 1
         extra = list(extra_lists[0]) if uniform and extra_lists else []

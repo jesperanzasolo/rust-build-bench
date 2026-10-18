@@ -140,6 +140,9 @@ class BazelAdapter(Adapter):
 
     def test(self, *, scenario, step, base, head) -> TestRun:
         # Identical for base=None and a base: Bazel's caches decide what reruns.
+        # Tests that write under <workspace>/target (rust-analyzer's slow-test cookie)
+        # expect the directory Cargo always creates.
+        (self.ctx.paths.ws / "target").mkdir(exist_ok=True)
         r = self.ctx.run(["bazel", "test", "//..."], scenario=scenario, step=step, env=self.env())
         return TestRun(commands=[r], counts=parse_bazel_test_counts(r.log_path))
 

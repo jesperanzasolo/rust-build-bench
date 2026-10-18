@@ -178,9 +178,18 @@ class Buck2Adapter(Adapter):
                     if not p.exists() or p.read_text() != text:
                         p.write_text(text)
             tp_hash = _third_party_hash(files, rust_version)
-            r = ctx.run(reindeer + ["buckify"], scenario="sync", step="reindeer-buckify", env=self.env())
+            healed: list[str] = []
+            for _ in range(4):
+                r = ctx.run(reindeer + ["buckify"], scenario="sync", step="reindeer-buckify", env=self.env())
+                log = Path(r.log_path).read_text(errors="replace") if r.log_path else ""
+                log = log[log.rfind("\n$ (cd "):]          # this invocation only
+                fixed = gen.heal_fixups(tp_dir, log)
+                healed += fixed
+                if not fixed:
+                    break
             if not r.ok:
                 raise RuntimeError(f"reindeer buckify failed, see {r.log_path}")
+            coverage["healed_fixups"] = healed
             mism = gen.lock_version_mismatches(ws, (tp_dir / "Cargo.lock").read_text())
             coverage["third_party_version_mismatches"] = mism
             state["third_party_hash"] = tp_hash

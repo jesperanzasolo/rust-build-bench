@@ -92,6 +92,11 @@ _INCLUDE_RE = re.compile(
 # pest_derive reads `#[grammar = "x.pest"]` from CARGO_MANIFEST_DIR or its src/ at
 # compile time (pest_generator/src/lib.rs); the file must be among the crate's srcs.
 _PEST_GRAMMAR_RE = re.compile(r'#\[\s*grammar\s*=\s*"([^"]+)"\s*\]')
+# Other files rustc reads relative to the current source file: `#[path = "..."] mod x;`
+# (rust-analyzer's parser keeps its generated test runner under test_data/) and
+# `#![debugger_visualizer(gdb_script_file = "...")]` (smol_str).
+_FILE_ATTR_RE = re.compile(
+    r'#!?\[\s*(?:path\s*=\s*"([^"]+)"|debugger_visualizer\s*\(\s*(?:gdb_script_file|natvis_file)\s*=\s*"([^"]+)")')
 
 
 # ---------------------------------------------------------------------------
@@ -600,6 +605,7 @@ def scan_vendor_includes(vendor_dir: Path) -> dict[str, dict[str, list[str]]]:
                           else (path.parent / m.group(1))) for m in _INCLUDE_RE.finditer(text)]
                 for m in _PEST_GRAMMAR_RE.finditer(text):
                     found += [root / m.group(1), root / "src" / m.group(1)]
+                found += [path.parent / (m.group(1) or m.group(2)) for m in _FILE_ATTR_RE.finditer(text)]
                 for tgt in found:
                     tgt = tgt.resolve()
                     try:
@@ -721,9 +727,10 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
         raw_extra = extra_srcs.get(name) or {}
         if isinstance(raw_extra, list):     # same files for every version
             raw_extra = {p["version"]: raw_extra for p in versions}
-        # Only crates Reindeer builds for the host: it reports any glob in a fixup for
-        # a crate it never builds as matching nothing (rust-analyzer's embedded-io).
-        ver_extra = {p["version"]: raw_extra.get(p["version"], []) for p in built}
+        # Every vendored version: Reindeer may build crates the host analysis misses
+        # (rust-analyzer's borsh). Globs for crates it never builds are reported as
+        # unused; the adapter drops those and buckifies again.
+        ver_extra = {p["version"]: raw_extra.get(p["version"], []) for p in versions}
         extra_lists = [tuple(v) for v in ver_extra.values()]
         uniform = len(set(extra_lists)) <= 1
         extra = list(extra_lists[0]) if uniform and extra_lists else []
@@ -768,6 +775,60 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
                           f"extra_srcs = {_tval(per_version_extra[ver])}"]
         out[f"{THIRD_PARTY}/fixups/{name}/fixups.toml"] = "\n".join(lines) + "\n"
     return out
+
+
+_MISSING_BS_RE = re.compile(r"(\S+) v\S+ has a build script, but fixups/([^/\s]+)/fixups\.toml does not say")
+_UNUSED_GLOB_RE = re.compile(r'fixups/([^/\s]+)/fixups\.toml line (\d+): "([^"]+)" matches no files')
+
+
+def heal_fixups(third_party_dir: Path, buckify_log: str) -> list[str]:
+    """Apply what `reindeer buckify` reports, so a second buckify succeeds:
+    - "X has a build script, but fixups/X/fixups.toml does not say what to do":
+      the host analysis missed a crate Reindeer builds; give it the generic
+      run-the-build-script fixup every other crate gets.
+    - "fixups/X/fixups.toml line N: "glob" matches no files": a glob for a crate
+      Reindeer does not build (or a file a version lacks); drop it.
+    Returns a description of each change (empty: nothing to heal)."""
+    changes: list[str] = []
+    fix_root = third_party_dir / "fixups"
+    env_lines: list[str] = []
+    for f in sorted(fix_root.glob("*/fixups.toml")):
+        lines = f.read_text().splitlines()
+        if "[buildscript.run.env]" in lines:
+            i = lines.index("[buildscript.run.env]") + 1
+            while i < len(lines) and lines[i].strip() and not lines[i].startswith("["):
+                env_lines.append(lines[i])
+                i += 1
+            break
+    for crate in sorted({m.group(2) for m in _MISSING_BS_RE.finditer(buckify_log)}):
+        f = fix_root / crate / "fixups.toml"
+        text = f.read_text() if f.exists() else HEADER
+        if "[buildscript" in text:
+            continue
+        # Top-level keys must stay above the first table: put the block at the end.
+        block = ["", "# Generic choice: run the build script, as Cargo does.",
+                 "[buildscript.run]", "rustc_link_lib = true", "rustc_link_search = true",
+                 "[buildscript.run.env]", *env_lines]
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text.rstrip("\n") + "\n" + "\n".join(block) + "\n")
+        changes.append(f"{crate}: run build script")
+    by_file: dict[Path, list[tuple[int, str]]] = {}
+    for m in _UNUSED_GLOB_RE.finditer(buckify_log):
+        by_file.setdefault(fix_root / m.group(1) / "fixups.toml", []).append((int(m.group(2)), m.group(3)))
+    for f, items in sorted(by_file.items()):
+        if not f.exists():
+            continue
+        lines = f.read_text().splitlines()
+        for lineno, glob in items:
+            i = lineno - 1
+            if not (0 <= i < len(lines)) or "extra_srcs" not in lines[i]:
+                continue
+            key, _, val = lines[i].partition("=")
+            entries = [e for e in re.findall(r'"((?:[^"\\]|\\.)*)"', val) if e != glob]
+            lines[i] = f"{key.rstrip()} = [{', '.join(_tstr(e) for e in entries)}]" if entries else "# (dropped: no files)"
+            changes.append(f"{f.parent.name}: drop extra_srcs {glob!r}")
+        f.write_text("\n".join(lines) + "\n")
+    return changes
 
 
 def lock_version_mismatches(ws: Workspace, lock_text: str) -> list[str]:
@@ -934,9 +995,10 @@ def _scan_includes(ws: Workspace, pkg: Package, rs_files: list[str]) -> tuple[li
             continue
         if "CARGO_MANIFEST_DIR" in text:
             mentions = True
-        for m in _INCLUDE_RE.finditer(text):
-            inc = m.group(1)
-            if "CARGO_MANIFEST_DIR" in m.group(0):
+        found = [(m.group(1), "CARGO_MANIFEST_DIR" in m.group(0)) for m in _INCLUDE_RE.finditer(text)]
+        found += [(m.group(1) or m.group(2), False) for m in _FILE_ATTR_RE.finditer(text)]
+        for inc, from_manifest in found:
+            if from_manifest:
                 tgt = (pkg_abs / inc.lstrip("/")).resolve()
             else:
                 tgt = (path.parent / inc).resolve()

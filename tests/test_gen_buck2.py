@@ -459,3 +459,33 @@ class AdapterTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HealFixupsTest(unittest.TestCase):
+    def test_heal(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as td:
+            tp = Path(td)
+            (tp / "fixups" / "cc").mkdir(parents=True)
+            (tp / "fixups" / "cc" / "fixups.toml").write_text(
+                "# h\n[buildscript.run]\nrustc_link_lib = true\n[buildscript.run.env]\nNUM_JOBS = \"4\"\n")
+            (tp / "fixups" / "embedded-io").mkdir()
+            (tp / "fixups" / "embedded-io" / "fixups.toml").write_text(
+                "# h\n# Files read by include*! macros.\nextra_srcs = [\"README.md\", \"x.md\"]\n")
+            log = ('[WARN  reindeer::fixups] borsh v1.6.1 has a build script, but fixups/borsh/fixups.toml '
+                   'does not say what to do with it.\n[ERROR reindeer] Unused globs:\n'
+                   '    fixups/embedded-io/fixups.toml line 3: "README.md" matches no files\n')
+            changes = gen.heal_fixups(tp, log)
+            self.assertEqual(len(changes), 2)
+            b = (tp / "fixups" / "borsh" / "fixups.toml").read_text()
+            self.assertIn("[buildscript.run]", b)
+            self.assertIn('NUM_JOBS = "4"', b)
+            e = (tp / "fixups" / "embedded-io" / "fixups.toml").read_text()
+            self.assertIn('extra_srcs = ["x.md"]', e)
+            self.assertEqual(gen.heal_fixups(tp, ""), [])
+
+    def test_file_attrs_scanned(self):
+        m = gen._FILE_ATTR_RE.findall('#[path = "../test_data/r.rs"]\nmod r;\n'
+                                      '#![debugger_visualizer(gdb_script_file = "p.py")]\n')
+        self.assertEqual(m, [("../test_data/r.rs", ""), ("", "p.py")])

@@ -16,6 +16,38 @@ Corpora: [ruff](https://github.com/astral-sh/ruff) and
 [rust-analyzer](https://github.com/rust-lang/rust-analyzer), each replayed over 10
 real merged pull requests.
 
+## Latest results (run 2026-10-15, preliminary)
+
+Average PR CI time per commit on a fresh runner with a shared cache (5 real
+commits per repo, 8 vCPU runner). Lower is better.
+
+| Tool | ruff | rust-analyzer | Stale results? |
+|---|---|---|---|
+| Cargo + nextest (baseline) | 303 s | 159 s | none |
+| Cargo + sccache | **198 s** (-35%) | 118 s (-25%) | none |
+| cargo-rail | 209 s (-31%) | **104 s** (-34%) | none |
+| moon | did not finish | 194 s (+22%) | none |
+| Bazel + rules_rust | 152 s (-50%)\* | 55 s\* | none |
+| Buck2 + Reindeer | 168 s (-45%)\* | could not build | none |
+
+\* Not like-for-like. Under the auto-generated configs Bazel fails a ruff test that
+runs `cargo build` itself and skips 14 of 43 rust-analyzer test targets; Buck2 fails
+one ruff test binary intermittently.
+
+- **sccache is the cheapest big win:** one wrapper setting (`RUSTC_WRAPPER=sccache`), a quarter to a third off PR CI.
+- **cargo-rail wins on deep crate graphs** and makes no-op runs near-instant
+  (1.4 s against 102 s on ruff), but on ruff its planner selects nearly every test.
+- **Bazel and Buck2 are faster on ruff mainly because they cache test results**,
+  at the cost of generated build files for every crate and about 2x the disk.
+- **No tool ever served a stale test result** (correctness canary).
+
+Caveats: one run per tool, so differences under ~15% may be noise; hermetic configs
+are generated, not expert-tuned; the shared cache has no network latency, which
+favours Bazel and Buck2. Full tables: [results/2026-10-15/REPORT.md](results/2026-10-15/REPORT.md);
+gaps and reruns: [NOTES.md](results/2026-10-15/NOTES.md).
+
+## About
+
 - **What is measured, and why:** [METHODOLOGY.md](METHODOLOGY.md) (normative)
 - **Results:** [`results/`](results/), one directory per published run, each with a
   `REPORT.md`, raw per-step records, logs and full provenance

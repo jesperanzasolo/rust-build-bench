@@ -1259,13 +1259,14 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
             attrs, mdir, mentions = got
             env = _cargo_env(pkg_raw, pkg, crate, mdir)
             env.update(bs_env)
-            if test:
-                # Tests use env!("CARGO_MANIFEST_DIR") to find fixtures, snapshots and
-                # sibling crates at run time (e.g. `../ty_vendored/vendor/typeshed`).
-                # Cargo bakes in the absolute package directory; rustc_action.py makes
-                # path-valued env absolute, so this yields exactly that, with only
-                # Cargo.toml as an input. Tests run locally from the checkout.
-                env["CARGO_MANIFEST_DIR"] = "$(source Cargo.toml)/.."
+            # Crates use env!("CARGO_MANIFEST_DIR") to find fixtures, snapshots and
+            # sibling crates at run time (e.g. `../ty_vendored/vendor/typeshed`), and
+            # so do test-support libraries (rust-analyzer's test-utils resolves the
+            # repository root and target/ from it). Cargo bakes in the absolute
+            # package directory; rustc_action.py makes path-valued env absolute, so
+            # this yields exactly that, with only Cargo.toml as an input. Tests run
+            # locally from the checkout.
+            env["CARGO_MANIFEST_DIR"] = "$(source Cargo.toml)/.."
             attrs.update({"crate": crate, "edition": t.edition, "env": dict(sorted(env.items())),
                           "features": pkg.features, "rustc_flags": extra_flags + bs_flags})
             return attrs, test and mentions

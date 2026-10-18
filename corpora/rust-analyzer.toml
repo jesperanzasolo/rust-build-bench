@@ -13,6 +13,16 @@ replay_commits = 10
 cargo_args = []
 metadata_args = []
 
+# Tests no tool runs (METHODOLOGY.md, "Test scope"): they failed under every tool in
+# run 2026-10-15 because they need tools the runner does not have (nightly rustfmt,
+# a git checkout with history), or they walk the whole repository.
+#   xtask            codegen and tidy checks (git, rustfmt)
+#   smol_str/tidy    rustfmt check
+#   test_format_document*   nightly rustfmt
+#   self_hosting_parsing    parses every .rs file in the repository
+skip_binaries = ["xtask", "smol_str/tidy"]
+skip_tests = ["test_format_document", "self_hosting_parsing"]
+
 [env]
 RUSTUP_TOOLCHAIN = "1.99.0"
 
@@ -21,6 +31,17 @@ components = ["rust-src"]
 
 # test_format_document_range needs a nightly rustfmt and skips itself when
 # none is installed. No toolchain other than the pinned stable is installed.
+
+# Runtime reads that cross crate boundaries (only hermetic tools use these; found
+# from the Bazel failures in run 2026-10-15). Cargo-based tools read them directly.
+[extra_data]
+syntax = ["crates/parser/test_data/**", "bench_data/**"]
+mbe = ["bench_data/**"]
+hir-ty = ["bench_data/**"]
+ide-db = ["bench_data/**"]
+ide = ["bench_data/**"]
+ide-diagnostics = ["bench_data/**"]
+rust-analyzer = ["bench_data/**", "editors/code/package.json", "docs/book/src/**"]
 
 [canary]
 upstream = "stdx"

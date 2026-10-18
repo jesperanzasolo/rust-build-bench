@@ -32,6 +32,21 @@ class Corpus:
     metadata_args: list[str]         # appended to `cargo metadata` for generators
     description: str = ""
     toolchain_components: list[str] = dataclasses.field(default_factory=list)  # extra rustup components
+    # Whole test binaries no tool runs: "pkg" (all of a package's test binaries),
+    # "pkg/lib" (its library unit tests), or "pkg/<name>" (a bin's unit tests or an
+    # integration test). Applied by every tool so test scope stays identical.
+    skip_binaries: list[str] = dataclasses.field(default_factory=list)
+
+    def binary_skipped(self, package: str, kind: str, name: str) -> bool:
+        """kind: "lib", "bin" or "test"; name: the bin or integration-test name."""
+        for spec in self.skip_binaries:
+            pkg, _, which = spec.partition("/")
+            if pkg != package:
+                continue
+            if not which or (which == "lib" and kind == "lib") or \
+                    (which != "lib" and which == name and kind != "lib"):
+                return True
+        return False
 
     @property
     def id(self) -> str:
@@ -87,6 +102,7 @@ def load_corpus(name_or_path: str) -> Corpus:
         cargo_args=list(d.get("cargo_args", [])),
         metadata_args=list(d.get("metadata_args", [])),
         toolchain_components=list(d.get("toolchain", {}).get("components", [])),
+        skip_binaries=list(d.get("skip_binaries", [])),
         description=d.get("description", ""),
     )
 

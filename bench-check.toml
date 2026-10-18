@@ -1,0 +1,8 @@
+# Check protocol: one cold run per (corpus, tool). Validates that a configuration
+# builds and runs the full test set; never published.
+[bench]
+scenarios = ["cold"]
+cold_samples = 1
+noop_samples = 1
+step_timeout_s = 3600
+canary = false

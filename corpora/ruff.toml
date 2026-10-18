@@ -14,6 +14,12 @@ replay_commits = 10
 cargo_args = ["--all-features"]
 metadata_args = ["--all-features"]
 
+# Test binaries no tool runs (METHODOLOGY.md, "Test scope"). Both test the
+# environment rather than the code: `examples` runs `cargo build` itself, and the ty
+# server end-to-end test discovers a Python environment relative to its working
+# directory (it failed intermittently under Bazel and Buck2 in run 2026-10-15).
+skip_binaries = ["ruff_annotate_snippets/examples", "ty_server/e2e"]
+
 # Mirrors ruff CI's top-level env for the test job (Cargo-only knobs are
 # ignored by non-Cargo tools; see METHODOLOGY.md "Build profile parity").
 [env]

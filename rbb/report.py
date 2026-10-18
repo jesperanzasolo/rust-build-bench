@@ -77,9 +77,33 @@ def summarize(recs: list[dict]) -> dict:
     return out
 
 
+def coverage_problem(s: dict, baseline: dict | None) -> str | None:
+    """Did the tool run the whole test set? Checked on the cold run, where every tool
+    runs everything. Hermetic tools must run every test target they define (a target
+    that fails to build or load is silently not run); Cargo-native tools must execute
+    exactly as many tests as the Cargo baseline."""
+    counts = s.get("cold_counts") or {}
+    defined = (s.get("coverage") or {}).get("test_targets")
+    if s["family"] not in CARGO_NATIVE:
+        ran = counts.get("executed", counts.get("total"))
+        if defined and ran is not None and ran < defined:
+            return f"ran {ran} of the {defined} test targets it defines (the rest did not build)"
+        return None
+    if baseline is None or s is baseline:
+        return None
+    b = (baseline.get("cold_counts") or {}).get("executed")
+    ran = counts.get("executed")
+    if b is not None and ran is not None and ran != b:
+        return f"executed {ran} tests on the cold run, the Cargo baseline {b}"
+    return None
+
+
 def eligible(s: dict, baseline: dict | None) -> tuple[bool, str]:
     if not s["canary_ok"]:
         return False, "canary failed: " + ", ".join(f"{k}={v}" for k, v in s["canary"].items())
+    cp = coverage_problem(s, baseline)
+    if cp:
+        return False, "different test set: " + cp
     # Only meaningful when the baseline is deterministic: if the corpus has flaky
     # tests, a single failing cold run says nothing about the tool.
     if s["cold_exit"] not in (0, None) and baseline and baseline.get("all_steps_clean"):

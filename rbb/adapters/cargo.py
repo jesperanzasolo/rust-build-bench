@@ -23,7 +23,7 @@ class CargoAdapter(Adapter):
         }
 
     def nextest_argv(self, selection: list[str] | None = None) -> list[str]:
-        sel = selection if selection is not None else ["--workspace", *self.exclude_args()]
+        sel = selection if selection is not None else ["--workspace", *self.exclude_args(), *self.filter_args()]
         argv = ["cargo", "nextest", "run", "--locked", "--no-fail-fast", "--no-tests=pass",
                 *self.ctx.corpus.cargo_args, *sel]
         skips = self.skip_args()

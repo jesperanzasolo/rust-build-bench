@@ -95,6 +95,25 @@ class DecisionTest(unittest.TestCase):
         self.assertEqual(d["per_corpus"]["c"]["verdict"], "use")
         self.assertIn("bazel", d["per_corpus"]["c"]["ineligible"])
 
+    def test_hermetic_that_skips_targets_is_ineligible(self):
+        rs = self.records(hermetic_fresh=50, native_fresh=100)
+        for r in rs:
+            if r["scenario"] == "cold" and r["tool"] == "bazel":
+                r["coverage"] = {"test_targets": 57}
+                r["counts"] = {"executed": 43, "total": 43, "unit": "test_target"}
+        d = report.decide(report.summarize(rs))
+        self.assertEqual(d["per_corpus"]["c"]["verdict"], "use")
+        self.assertIn("43 of the 57", d["per_corpus"]["c"]["ineligible"]["bazel"])
+
+    def test_native_with_different_test_count_is_ineligible(self):
+        rs = self.records(hermetic_fresh=90, native_fresh=100)
+        for r in rs:
+            if r["scenario"] == "cold":
+                n = 8409 if r["tool"] == "cargo-rail" else 8227
+                r["counts"] = {"executed": n, "unit": "test"}
+        d = report.decide(report.summarize(rs))
+        self.assertIn("8409", d["per_corpus"]["c"]["ineligible"]["cargo-rail"])
+
 
 class MeasureTest(unittest.TestCase):
     def test_run_measures_and_logs(self):
@@ -130,3 +149,32 @@ class CheckoutTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SkipBinariesTest(unittest.TestCase):
+    def _adapter(self, specs):
+        import types
+        from rbb.adapters.cargo import CargoAdapter
+        from rbb.config import Canary, Corpus
+        c = Corpus(name="t", kind="git", repo=None, commit=None, replay_commits=1, exclude_packages=[],
+                   skip_tests=[], env={}, canary=Canary(), synthetic={}, extra_data={},
+                   cargo_args=[], metadata_args=[], skip_binaries=specs)
+        a = CargoAdapter.__new__(CargoAdapter)
+        a.ctx = types.SimpleNamespace(corpus=c)
+        return a, c
+
+    def test_filterset(self):
+        a, c = self._adapter(["xtask", "smol_str/tidy", "ruff/lib"])
+        self.assertEqual(a.filter_args("package(=hir)"),
+                         ["-E", "package(=hir) & not (package(=xtask) | (package(=smol_str) & binary(=tidy))"
+                                " | (package(=ruff) & kind(lib)))"])
+        self.assertTrue(c.binary_skipped("xtask", "bin", "xtask"))
+        self.assertTrue(c.binary_skipped("smol_str", "test", "tidy"))
+        self.assertFalse(c.binary_skipped("smol_str", "lib", "smol_str"))
+        self.assertTrue(c.binary_skipped("ruff", "lib", "ruff"))
+        self.assertFalse(c.binary_skipped("ruff", "test", "lib"))
+
+    def test_no_specs_no_filter(self):
+        a, _ = self._adapter([])
+        self.assertEqual(a.filter_args(), [])
+        self.assertEqual(a.filter_args("package(=x)"), ["-E", "package(=x)"])

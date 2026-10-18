@@ -169,6 +169,25 @@ class Adapter:
             out += ["--skip", s]
         return out
 
+    def binary_skip_expr(self) -> str | None:
+        """nextest filterset excluding corpus.skip_binaries, or None."""
+        parts = []
+        for spec in self.ctx.corpus.skip_binaries:
+            pkg, _, which = spec.partition("/")
+            if not which:
+                parts.append(f"package(={pkg})")
+            elif which == "lib":
+                parts.append(f"(package(={pkg}) & kind(lib))")
+            else:
+                parts.append(f"(package(={pkg}) & binary(={which}))")
+        return f"not ({' | '.join(parts)})" if parts else None
+
+    def filter_args(self, include: str | None = None) -> list[str]:
+        """One `-E` filterset (nextest ORs repeated -E flags, so they are combined)."""
+        skip = self.binary_skip_expr()
+        expr = " & ".join(e for e in (include, skip) if e)
+        return ["-E", expr] if expr else []
+
     def exclude_args(self) -> list[str]:
         out: list[str] = []
         for p in self.ctx.corpus.exclude_packages:

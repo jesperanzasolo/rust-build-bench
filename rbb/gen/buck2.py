@@ -566,10 +566,13 @@ def _crate_src_dirs(crate_dir: Path, manifest: Path) -> tuple[str, ...]:
     return tuple(sorted(out))
 
 
-def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
-    """{package name: [manifest-relative files]} that vendored crates read with include*!
-    and that `**/*.rs` under the crate root's directory does not already cover."""
-    out: dict[str, set[str]] = {}
+def scan_vendor_includes(vendor_dir: Path) -> dict[str, dict[str, list[str]]]:
+    """{package name: {version: [manifest-relative files]}} that vendored crates read
+    with include*! and that `**/*.rs` under the crate root's directory does not already
+    cover. Per version: two vendored versions of one crate can ship different files
+    (rust-analyzer: one `embedded-io` reads README.md, the other has none), and Reindeer
+    rejects a fixup glob that matches nothing."""
+    out: dict[tuple[str, str], set[str]] = {}
     if not vendor_dir.is_dir():
         return {}
     for crate_dir in sorted(vendor_dir.iterdir()):
@@ -577,7 +580,8 @@ def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
         if not man.is_file():
             continue
         try:
-            name = tomllib.loads(man.read_text(errors="replace"))["package"]["name"]
+            pk = tomllib.loads(man.read_text(errors="replace"))["package"]
+            name, version = pk["name"], str(pk.get("version", ""))
         except (tomllib.TOMLDecodeError, KeyError, TypeError):
             continue
         root = crate_dir.resolve()
@@ -605,8 +609,11 @@ def scan_vendor_includes(vendor_dir: Path) -> dict[str, list[str]]:
                     # `**/*.rs` under the crate root's directory (Reindeer's default
                     # srcs) already covers .rs files there; anything else is extra.
                     if tgt.is_file() and not (rel.endswith(".rs") and rel.startswith(src_dirs)):
-                        out.setdefault(name, set()).add(rel)
-    return {k: sorted(v) for k, v in sorted(out.items())}
+                        out.setdefault((name, version), set()).add(rel)
+    res: dict[str, dict[str, list[str]]] = {}
+    for (name, version), files in sorted(out.items()):
+        res.setdefault(name, {})[version] = sorted(files)
+    return res
 
 
 _VER = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
@@ -690,7 +697,7 @@ def _buildscript_env(profile_env: dict[str, str]) -> dict[str, str]:
 
 
 def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
-                       extra_srcs: dict[str, list[str]] | None = None,
+                       extra_srcs: dict[str, dict[str, list[str]] | list[str]] | None = None,
                        profile_env: dict[str, str] | None = None) -> dict[str, str]:
     """fixups/<crate>/fixups.toml for third-party crates that have a build script (run it,
     the generic best-effort choice), a Cargo profile override, or files read by include*!
@@ -711,9 +718,16 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
         has_bs = any(any("custom-build" in t["kind"] for t in p["targets"]) for p in built)
         links = any(p.get("links") for p in built)
         flags = package_flags.get(name)
-        extra = extra_srcs.get(name)
+        raw_extra = extra_srcs.get(name) or {}
+        if isinstance(raw_extra, list):     # same files for every version
+            raw_extra = {p["version"]: raw_extra for p in versions}
+        ver_extra = {p["version"]: raw_extra.get(p["version"], []) for p in versions}
+        extra_lists = [tuple(v) for v in ver_extra.values()]
+        uniform = len(set(extra_lists)) <= 1
+        extra = list(extra_lists[0]) if uniform and extra_lists else []
+        per_version_extra = {} if uniform else {v: fs for v, fs in ver_extra.items() if fs}
         narrow = narrowing.get(name, {})
-        if not has_bs and not flags and not extra and not narrow:
+        if not has_bs and not flags and not extra and not per_version_extra and not narrow:
             continue
         lines = [HEADER]
         if extra:
@@ -745,6 +759,11 @@ def third_party_fixups(an: Analysis, package_flags: dict[str, list[str]],
                     for dep, req in narrow[ver].items():
                         lines += [f"['cfg(version = \"={ver}\")'.resolver.dependencies.{_tstr(dep)}]",
                                   f"narrow_to = {_tstr(req)}"]
+        if per_version_extra:
+            lines += ["", "# Files read by include*! macros, per vendored version."]
+            for ver in sorted(per_version_extra):
+                lines += [f"['cfg(version = \"={ver}\")']",
+                          f"extra_srcs = {_tval(per_version_extra[ver])}"]
         out[f"{THIRD_PARTY}/fixups/{name}/fixups.toml"] = "\n".join(lines) + "\n"
     return out
 
@@ -1020,7 +1039,7 @@ def _export_label(pkgs: dict[str, BuckPackage], ws: Workspace, path: str) -> str
 
 def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
              host_triple: str = DEFAULT_HOST_TRIPLE, host_cfg_text: str = DEFAULT_HOST_CFG,
-             vendor_extra_srcs: dict[str, list[str]] | None = None,
+             vendor_extra_srcs: dict[str, dict[str, list[str]] | list[str]] | None = None,
              cc_tools: dict[str, str] | None = None, num_jobs: int = 1
              ) -> tuple[dict[str, str], dict]:
     """Return ({repo-relative path: text}, coverage) for the whole Buck2 overlay.
@@ -1199,6 +1218,9 @@ def generate(ws: Workspace, corpus, rust_version: str, endpoint: str | None, *,
                 return
             if not t.test:
                 cov["skipped"].append({"target": label, "reason": "test = false"})
+                return
+            if corpus.binary_skipped(pkg.name, kind, t.name):
+                cov["skipped"].append({"target": label, "reason": "corpus skip_binaries"})
                 return
             if not _features_ok(t, pkg.features):
                 cov["skipped"].append({"target": label, "reason": "required-features not enabled"})

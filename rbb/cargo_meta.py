@@ -34,6 +34,7 @@ class Dep:
     crate_name: str        # name the code uses (after `package =` renames)
     kinds: set[str]        # {"normal", "dev", "build"}
     is_proc_macro: bool
+    version: str = ""      # resolved version of the dependency
 
 
 @dataclasses.dataclass
@@ -72,6 +73,15 @@ class Workspace:
 
     def members(self) -> list[Package]:
         return sorted(self.packages.values(), key=lambda p: p.dir)
+
+    def registry_shadowed(self) -> set[str]:
+        """Members whose name is also a third-party package in the resolve (e.g.
+        rust-analyzer's `lib/la-arena`, also pulled from crates.io by a dependency).
+        crate_universe 0.74 keys such a crate by name and version and drops the
+        member from its per-package dependency map."""
+        members = set(self.raw.get("workspace_members", []))
+        third = {p["name"] for p in self.raw.get("packages", []) if p["id"] not in members}
+        return {n for n in self.packages if n in third}
 
     def reverse_deps(self) -> dict[str, set[str]]:
         rev: dict[str, set[str]] = {n: set() for n in self.packages}
@@ -158,7 +168,8 @@ def from_metadata(raw: dict, root: Path, exclude: set[str] | None = None) -> Wor
                 continue
             kinds = {(dk.get("kind") or "normal") for dk in d.get("dep_kinds", [])} or {"normal"}
             is_pm = any("proc-macro" in t["kind"] for t in dp["targets"])
-            dep = Dep(package=dp["name"], crate_name=d["name"], kinds=kinds, is_proc_macro=is_pm)
+            dep = Dep(package=dp["name"], crate_name=d["name"], kinds=kinds, is_proc_macro=is_pm,
+                      version=dp["version"])
             if d["pkg"] in members:
                 if dp["name"] not in exclude and dp["name"] != p["name"]:
                     ws_deps.append(dep)

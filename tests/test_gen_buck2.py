@@ -361,7 +361,7 @@ class GenBuck2Test(unittest.TestCase):
         (vendor / "README.md").write_text("x\n")
         (vendor / "src" / "gen.rs").write_text("\n")
         scanned = gen.scan_vendor_includes(self.root / "third-party" / "vendor")
-        self.assertEqual(scanned, {"anyhow": ["README.md", "data/mod.rs", "src/g.pest"]})
+        self.assertEqual(scanned, {"anyhow": {"1.0.80": ["README.md", "data/mod.rs", "src/g.pest"]}})
         files, cov = gen.generate(self.ws, make_corpus(), "1.99.0", None, vendor_extra_srcs=scanned)
         self.assertIn('extra_srcs = ["README.md", "data/mod.rs", "src/g.pest"]\n',
                       files["third-party/fixups/anyhow/fixups.toml"])

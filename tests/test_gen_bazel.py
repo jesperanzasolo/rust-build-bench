@@ -329,3 +329,58 @@ class GenBazelTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GenBazelFixesTest(unittest.TestCase):
+    """Fixes from run 2026-10-15: registry-shadowed members, skip_binaries, launcher."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = Path(cls.tmp.name).resolve()
+        write_tree(root)
+        md = make_metadata(root)
+        # A third-party crate with the same name as the member `my-macros`, as
+        # rust-analyzer's lib/la-arena is also pulled from crates.io.
+        md["packages"].append({"name": "my-macros", "version": "0.1.9", "id": f"{REG}#my-macros@0.1.9",
+                               "edition": "2021", "manifest_path": "/reg/my-macros/Cargo.toml",
+                               "features": {}, "dependencies": [],
+                               "targets": [_target("my_macros", ["lib"], "/reg/my-macros/src/lib.rs")]})
+        cls.ws = cargo_meta.from_metadata(md, root)
+        cls.files, cls.cov = gen.generate(
+            cls.ws, corpus(skip_binaries=["core-lib/smoke", "core-lib/lib"]),
+            rust_version="1.99.0", rules_rust_version="0.74.0",
+            remote_cache=None, output_user_root="/w/bazel-root",
+            repository_cache="/s/bazel-repo-cache", rust_sha256s={"rustc-1.99.0-x.tar.xz": "ab"})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_shadowed_member_gets_explicit_deps(self):
+        self.assertEqual(self.ws.registry_shadowed(), {"my-macros"})
+        b = self.files["crates/my-macros/BUILD.bazel"]
+        self.assertNotIn("all_crate_deps(", b.split("load(")[-1].split("\n", 1)[1])
+        self.assertIn('"@crates//:quote-1.0.0"', b)
+        self.assertIn("all_crate_deps(normal = True)", self.files["crates/core-lib/BUILD.bazel"])
+
+    def test_skip_binaries(self):
+        b = self.files["crates/core-lib/BUILD.bazel"]
+        self.assertNotIn('name = "smoke_test"', b)
+        self.assertNotIn('name = "core-lib_unit_test"', b)
+        self.assertIn('name = "shared_test"', b)
+
+    def test_library_gets_real_manifest_dir(self):
+        lib = self.files["crates/core-lib/BUILD.bazel"].split('rust_library(')[1].split("\n)\n")[0]
+        self.assertIn('"CARGO_MANIFEST_DIR": "' + str(self.ws.root / "crates/core-lib"), lib)
+
+    def test_launcher_handles_dashed_bin_names(self):
+        sh = self.files["rbb_test_launcher.sh"]
+        self.assertIn("env -0", sh)
+        self.assertIn('export CARGO_WORKSPACE_DIR="$root/"', sh)
+        self.assertIn('exec env ${fix[@]+"${fix[@]}"} "$exe" "$@"', sh)
+
+    def test_test_env_keeps_toolchain_homes(self):
+        env = gen.default_test_env({"RUSTUP_HOME": "/r", "CARGO_HOME": "/c", "HOME": "/h",
+                                    "PATH": "/p", "CARGO_INCREMENTAL": "0", "X": "1"})
+        self.assertEqual(env, {"RUSTUP_HOME": "/r", "CARGO_HOME": "/c", "X": "1"})

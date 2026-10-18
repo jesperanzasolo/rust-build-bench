@@ -530,7 +530,8 @@ def launcher_script() -> str:
 #     so the test still cannot see undeclared files.
 #   * CARGO_BIN_EXE_<bin> is absolute (BUILD files set it runfiles-relative);
 #   * INSTA_WORKSPACE_ROOT (insta's documented override) replaces the `cargo metadata`
-#     call insta would otherwise make to find the workspace root.
+#     call insta would otherwise make to find the workspace root; CARGO_WORKSPACE_DIR
+#     does the same for expect-test (`cargo locate-project`).
 set -euo pipefail
 runfiles="$PWD"
 exe="$1"
@@ -545,13 +546,17 @@ if ! cp -RL --link -- "$runfiles/." "$root/" 2>/dev/null; then
   cp -RL -- "$runfiles/." "$root/"
 fi
 export INSTA_WORKSPACE_ROOT="$root"
-while IFS='=' read -r name _; do
+export CARGO_WORKSPACE_DIR="$root/"
+# Bin names may contain '-', which bash cannot export; pass them through env(1).
+fix=()
+while IFS= read -r -d '' kv; do
+  name="${kv%%=*}"
+  val="${kv#*=}"
   case "$name" in
     CARGO_BIN_EXE_*)
-      val="${!name}"
-      case "$val" in /*) ;; *) export "$name=$runfiles/$val" ;; esac ;;
+      case "$val" in /*) ;; *) fix+=("$name=$runfiles/$val") ;; esac ;;
   esac
-done < <(env)
+done < <(env -0)
 dir="${CARGO_MANIFEST_DIR:-}"
 case "$dir" in
   ""|.) export CARGO_MANIFEST_DIR="$root" ;;
@@ -559,7 +564,7 @@ case "$dir" in
   *) export CARGO_MANIFEST_DIR="$root/$dir" ;;
 esac
 cd "$CARGO_MANIFEST_DIR"
-exec "$exe" "$@"
+exec env ${fix[@]+"${fix[@]}"} "$exe" "$@"
 """
 
 
@@ -582,6 +587,30 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
     platforms = ctx["ws_dep_platforms"]
     triple = ctx["host_triple"]
     cov = {"targets": [], "skipped": [], "dropped_features": dropped}
+    # crate_universe has no dependency map for a member that shares its name with a
+    # third-party crate (see Workspace.registry_shadowed); name its deps explicitly.
+    shadow = pkg.name in ctx.get("shadowed", set())
+    if shadow:
+        cov["explicit_third_party_deps"] = True
+
+    def ext(*flags: str):
+        if not shadow:
+            return Expr(f"all_crate_deps({', '.join(f + ' = True' for f in flags)})")
+        want = set()
+        for f in flags:
+            kind = {"normal": "normal", "proc_macro": "normal", "normal_dev": "dev",
+                    "proc_macro_dev": "dev", "build": "build", "build_proc_macro": "build"}[f]
+            want.add((kind, f.startswith("proc_macro") or f == "build_proc_macro"))
+        return sorted({f"@{CRATES_REPO}//:{d.package}-{d.version}" for d in pkg.ext_deps
+                       for k in d.kinds if (k, d.is_proc_macro) in want})
+
+    abs_pkg = (ws.root / pkg.dir).resolve().as_posix() if pkg.dir != "." else ws.root.resolve().as_posix()
+    # Compile-time CARGO_MANIFEST_DIR is the package's real directory for every crate,
+    # as Cargo sets it. rules_rust's default is the action's sandbox, which is gone at
+    # run time, so a library that resolves fixture paths with env!() (rust-analyzer's
+    # test-utils reading bench_data/) would point nowhere. Files read that way are
+    # declared as test data, so they still invalidate cached results.
+    real_dir_env = {"CARGO_MANIFEST_DIR": abs_pkg.replace("$", "$$")}
 
     def ws_deps(*kinds: str) -> tuple[list[str], list[str], dict[str, str]]:
         deps, pms, aliases = [], [], {}
@@ -615,6 +644,14 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
         if "build" in kinds and "build" in ext_renamed:
             flags += ["build = True", "build_proc_macro = True"]
         parts = []
+        if shadow:
+            kmap = {"normal": "normal", "dev": "dev", "build": "build"}
+            fp_aliases = dict(fp_aliases)
+            for d in pkg.ext_deps:
+                if d.kinds & {kmap[k] for k in kinds if k in kmap} and \
+                        d.crate_name != lib_names.get(d.package, d.package.replace("-", "_")):
+                    fp_aliases[f"@{CRATES_REPO}//:{d.package}-{d.version}"] = d.crate_name
+            flags = []
         if flags:
             parts.append(f"aliases({', '.join(flags)})")
         if fp_aliases:
@@ -667,11 +704,11 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
 
         lost = [d for d in pkg.ext_deps
                 if "build" in d.kinds and "dev" in d.kinds and "normal" not in d.kinds]
-        b_ext = [Expr("all_crate_deps(build = True)")]
-        b_pm_ext = [Expr("all_crate_deps(build_proc_macro = True)")]
+        b_ext = [ext("build")]
+        b_pm_ext = [ext("build_proc_macro")]
         for want_pm, dest in ((False, b_ext), (True, b_pm_ext)):
             keys = sorted({hub_key(d) for d in lost if d.is_proc_macro == want_pm})
-            if keys:
+            if keys and not shadow:   # explicit lists already name them
                 loads[f"@{CRATES_REPO}//:defs.bzl"].add("crate_deps")
                 dest.append(Expr(f"crate_deps({_render(keys, 1)})"))
         al = aliases_expr({"build"}, b_alias)
@@ -720,9 +757,10 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
             "crate_features": features,
             "crate_name": lib.crate_name,
             "crate_root": root,
-            "deps": _concat(Expr("all_crate_deps(normal = True)"), n_deps + own),
+            "deps": _concat(ext("normal"), n_deps + own),
             "edition": lib.edition,
-            "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro = True)"), n_pms),
+            "proc_macro_deps": _concat(ext("proc_macro"), n_pms),
+            "rustc_env": real_dir_env,
             "rustc_env_files": env_files,
             "srcs": srcs_for(root),
             "version": pkg.version,
@@ -757,9 +795,10 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
             "crate_features": features,
             "crate_name": b.crate_name,
             "crate_root": root,
-            "deps": _concat(Expr("all_crate_deps(normal = True)"), n_deps + own + lib_dep),
+            "deps": _concat(ext("normal"), n_deps + own + lib_dep),
             "edition": b.edition,
-            "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro = True)"), n_pms + lib_pm),
+            "proc_macro_deps": _concat(ext("proc_macro"), n_pms + lib_pm),
+            "rustc_env": real_dir_env,
             "rustc_env_files": env_files,
             "srcs": srcs_for(root),
             "version": pkg.version,
@@ -773,8 +812,7 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
     # no longer exists when the test runs, so `env!("CARGO_MANIFEST_DIR")` used at run
     # time (fixture roots, mdtest suites) would point nowhere. Runtime
     # `std::env::var("CARGO_MANIFEST_DIR")` stays the runfiles copy (see the launcher).
-    abs_pkg = (ws.root / pkg.dir).resolve().as_posix() if pkg.dir != "." else ws.root.resolve().as_posix()
-    test_rustc_env = {"CARGO_MANIFEST_DIR": abs_pkg.replace("$", "$$")}
+    test_rustc_env = dict(real_dir_env)
     test_data = [f":{ALL_FILES}"] + ctx["extra_data_labels"].get(pkg.name, [])
     test_data = sorted(set(test_data))
     args = []
@@ -784,7 +822,9 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
     if excluded:
         cov["skipped"].append({"target": "*", "kind": "tests", "reason": "package in exclude_packages"})
     else:
-        if pkg.lib and pkg.lib.test:
+        if pkg.lib and pkg.lib.test and corpus.binary_skipped(pkg.name, "lib", pkg.lib.name):
+            cov["skipped"].append({"target": pkg.lib.name, "kind": "lib-test", "reason": "corpus skip_binaries"})
+        elif pkg.lib and pkg.lib.test:
             tname = names.take(f"{ctx['lib_target'][pkg.name]}_unit_test")
             loads["@rules_rust//rust:defs.bzl"].add("rust_test")
             al = aliases_expr({"dev"}, {k: v for k, v in d_alias.items()})
@@ -797,9 +837,9 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
                 "crate": lib_label,
                 "crate_features": features,
                 "data": test_data,
-                "deps": _concat(Expr("all_crate_deps(normal_dev = True)"),
+                "deps": _concat(ext("normal_dev"),
                                 [d for d in d_deps if d not in n_deps]),
-                "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro_dev = True)"),
+                "proc_macro_deps": _concat(ext("proc_macro_dev"),
                                            [d for d in d_pms if d not in n_pms]),
                 "rustc_env": test_rustc_env,
                 "rustc_env_files": env_files,
@@ -810,6 +850,9 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
         for b, bname in bins:
             if not b.test:
                 continue
+            if corpus.binary_skipped(pkg.name, "bin", b.name):
+                cov["skipped"].append({"target": b.name, "kind": "bin-test", "reason": "corpus skip_binaries"})
+                continue
             tname = names.take(f"{bname}_bin_unit_test")
             loads["@rules_rust//rust:defs.bzl"].add("rust_test")
             body.append(_call("rust_test", {
@@ -818,9 +861,9 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
                 "crate": f":{bname}",
                 "crate_features": features,
                 "data": test_data,
-                "deps": _concat(Expr("all_crate_deps(normal_dev = True)"),
+                "deps": _concat(ext("normal_dev"),
                                 [d for d in d_deps if d not in n_deps]),
-                "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro_dev = True)"),
+                "proc_macro_deps": _concat(ext("proc_macro_dev"),
                                            [d for d in d_pms if d not in n_pms]),
                 "rustc_env": test_rustc_env,
                 "rustc_env_files": env_files,
@@ -836,6 +879,9 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
         for t in sorted(pkg.tests, key=lambda x: x.name):
             if not t.test:
                 cov["skipped"].append({"target": t.name, "kind": "test", "reason": "test = false"})
+                continue
+            if corpus.binary_skipped(pkg.name, "test", t.name):
+                cov["skipped"].append({"target": t.name, "kind": "test", "reason": "corpus skip_binaries"})
                 continue
             missing = sorted(set(t.required_features) - feat_set)
             if missing:
@@ -880,11 +926,11 @@ def _package_build(ws: Workspace, pkg: Package, corpus: Corpus, ctx: dict) -> tu
                 "crate_name": t.crate_name,
                 "crate_root": root,
                 "data": sorted(set(test_data + [f":{bn}" for _, bn in bins])),
-                "deps": _concat(Expr("all_crate_deps(normal = True, normal_dev = True)"),
+                "deps": _concat(ext("normal", "normal_dev"),
                                 all_deps + own + lib_dep),
                 "edition": t.edition,
                 "env": dict(sorted(bin_env.items())),
-                "proc_macro_deps": _concat(Expr("all_crate_deps(proc_macro = True, proc_macro_dev = True)"),
+                "proc_macro_deps": _concat(ext("proc_macro", "proc_macro_dev"),
                                            all_pms + lib_pm),
                 "rustc_env": dict(sorted({**bin_rustc_env, **test_rustc_env}.items())),
                 "rustc_env_files": env_files,
@@ -968,8 +1014,13 @@ def _root_build(ws: Workspace, ctx: dict, root_pkg_build: str | None,
 
 def default_test_env(env: dict[str, str]) -> dict[str, str]:
     """Environment the tests of every tool see, minus what is Cargo/host-specific."""
-    drop = {"PATH", "RUSTUP_HOME", "HOME"}
-    return {k: v for k, v in env.items() if k not in drop and not k.startswith("CARGO_")}
+    # PATH is passed separately (--test_env=PATH). RUSTUP_HOME and CARGO_HOME are kept:
+    # tests that run rustc or cargo (rust-analyzer's toolchain probes, layout tests)
+    # otherwise fail with "toolchain not installed", as they would under any tool.
+    drop = {"PATH", "HOME"}
+    keep = {"CARGO_HOME"}
+    return {k: v for k, v in env.items()
+            if k not in drop and (k in keep or not k.startswith("CARGO_"))}
 
 
 def rust_dist_keys(rust_version: str, triples: list[str]) -> list[str]:
@@ -997,6 +1048,7 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
         "lib_names": _lib_name_by_package(ws),
         "ws_dep_platforms": _ws_dep_platforms(ws),
         "lib_target": {p.name: p.name for p in members},
+        "shadowed": ws.registry_shadowed(),
         "dropped_features": {},
         "filegroups": {},          # pkg dir -> {filegroup name: [globs]}
         "outside_labels": {},      # pkg name -> [labels]

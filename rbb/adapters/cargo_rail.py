@@ -71,13 +71,13 @@ class CargoRailAdapter(CargoAdapter):
             i += 1
         if "--workspace" in out:
             out += self.exclude_args()
-        return out
+        return out + self.filter_args()
 
     def test(self, *, scenario, step, base, head) -> TestRun:
         ctx = self.ctx
         cmds = []
         if base is None:
-            selection = ["--workspace", *self.exclude_args()]
+            selection = ["--workspace", *self.exclude_args(), *self.filter_args()]
             plan_info = {"mode": "all"}
         else:
             plan_file = ctx.paths.work / "plans" / f"{step}.json"

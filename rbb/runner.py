@@ -161,6 +161,11 @@ class Runner:
         checkout(self.paths.ws, head)
         sync_s = self._sync()
         run = self.adapter.test(scenario=scenario, step=step, base=base, head=head)
+        if extra and "coverage" in extra:
+            # Known only after sync generated the config: how many test targets the
+            # tool defines, so the report can check it ran all of them.
+            cov = getattr(self.adapter, "coverage", None) or {}
+            extra = {**extra, "coverage": {"test_targets": cov.get("test_targets")} if cov else None}
         return self.emit(scenario, step, commit=head, base=base, run=run, sync_s=round(sync_s, 3), extra=extra)
 
     # -- protocol -----------------------------------------------------------------
@@ -199,8 +204,7 @@ class Runner:
     def scenario_cold(self, commits: list[str]) -> None:
         for i in range(self.bench.cold_samples):
             self.adapter.wipe_all()
-            self._step("cold", f"s{i}", base=None, head=commits[0],
-                       extra={"coverage": getattr(self.adapter, "coverage", None) or None})
+            self._step("cold", f"s{i}", base=None, head=commits[0], extra={"coverage": None})
 
     def scenario_noop(self, commits: list[str]) -> None:
         head = git(self.paths.ws, "rev-parse", "HEAD")

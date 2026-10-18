@@ -371,6 +371,7 @@ class GenBazelFixesTest(unittest.TestCase):
         m = self.files["MODULE.bazel"]
         self.assertIn('package = "quote"', m)
         self.assertIn('version = "=1.0.0"', m)
+        self.assertIn('repositories = ["crates_rbb_shadow"]', m)
         self.assertIn('crate.from_specs(', m)
         self.assertIn('use_repo(crate, "crates_rbb_shadow")', m)
 

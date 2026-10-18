@@ -514,8 +514,11 @@ def module_bazel(ws: Workspace, *, rust_version: str, rules_rust_version: str,
         out.append("\n# Crates only registry-shadowed members use (crate_universe drops those\n"
                    "# members from the hub above), pinned to the workspace resolve.\n")
         for (name, version), feats in sorted(shadow_specs.items()):
+            # `repositories`: without it a spec is spliced into every hub, including
+            # the from_cargo one above (whose lockfile then no longer matches).
             out.append(_call("crate.spec", {"default_features": False, "features": feats,
-                                            "package": name, "version": f"={version}"}))
+                                            "package": name, "repositories": [SHADOW_REPO],
+                                            "version": f"={version}"}))
         out.append(_call("crate.from_specs", {"name": SHADOW_REPO, "host_tools": f"@{HOST_TOOLS_REPO}",
                                               "supported_platform_triples": sorted(platform_triples)}))
         out.append(f'use_repo(crate, "{SHADOW_REPO}")\n')

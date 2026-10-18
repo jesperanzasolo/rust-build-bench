@@ -11,6 +11,10 @@ from ..cargo_meta import Package, Workspace
 from ..measure import capture
 
 _INCLUDE_RE = re.compile(r'include(?:_str|_bytes)?!\s*\(\s*(?:concat!\s*\(\s*env!\s*\(\s*"CARGO_MANIFEST_DIR"\s*\)\s*,\s*)?"([^"]+)"')
+# Files rustc reads relative to the current source file besides include*!:
+# `#[path = "..."] mod x;` and `#![debugger_visualizer(gdb_script_file = "...")]`.
+_FILE_ATTR_RE = re.compile(
+    r'#!?\[\s*(?:path\s*=\s*"([^"]+)"|debugger_visualizer\s*\(\s*(?:gdb_script_file|natvis_file)\s*=\s*"([^"]+)")')
 
 
 def rust_version(ws_root: Path, env: dict | None = None) -> str:

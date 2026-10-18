@@ -87,16 +87,12 @@ _REINDEER_PLATFORMS = {
 
 _CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
 _LIB_KINDS = {"lib", "rlib", "proc-macro", "cdylib", "staticlib", "dylib"}
+from .common import _FILE_ATTR_RE  # noqa: E402
 _INCLUDE_RE = re.compile(
     r'include(?:_str|_bytes)?!\s*\(\s*(?:concat!\s*\(\s*env!\s*\(\s*"CARGO_MANIFEST_DIR"\s*\)\s*,\s*)?"([^"]+)"')
 # pest_derive reads `#[grammar = "x.pest"]` from CARGO_MANIFEST_DIR or its src/ at
 # compile time (pest_generator/src/lib.rs); the file must be among the crate's srcs.
 _PEST_GRAMMAR_RE = re.compile(r'#\[\s*grammar\s*=\s*"([^"]+)"\s*\]')
-# Other files rustc reads relative to the current source file: `#[path = "..."] mod x;`
-# (rust-analyzer's parser keeps its generated test runner under test_data/) and
-# `#![debugger_visualizer(gdb_script_file = "...")]` (smol_str).
-_FILE_ATTR_RE = re.compile(
-    r'#!?\[\s*(?:path\s*=\s*"([^"]+)"|debugger_visualizer\s*\(\s*(?:gdb_script_file|natvis_file)\s*=\s*"([^"]+)")')
 
 
 # ---------------------------------------------------------------------------

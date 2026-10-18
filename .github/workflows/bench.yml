@@ -72,8 +72,8 @@ jobs:
       - name: Machine
         run: |
           nproc; free -g; df -h /; grep -m1 'model name' /proc/cpuinfo; python3 --version
-          git config --global user.name "rust-build-bench"
-          git config --global user.email "rust-build-bench@users.noreply.github.com"
+          git config --global user.name "Jonathan Esperanza"
+          git config --global user.email "jonathanesperanza67@gmail.com"
       - name: rustup
         run: |
           if ! command -v rustup >/dev/null; then
@@ -102,8 +102,8 @@ jobs:
           fetch-depth: 0
       - name: Merge per-tool results and report
         run: |
-          git config --global user.name "rust-build-bench"
-          git config --global user.email "rust-build-bench@users.noreply.github.com"
+          git config --global user.name "Jonathan Esperanza"
+          git config --global user.email "jonathanesperanza67@gmail.com"
           for b in $(git ls-remote --heads origin "run/$RUN_ID/*" | awk '{print $2}' | sed 's#refs/heads/##' | grep -v -E '/(report|all)$' | sort); do
             git fetch -q origin "$b"
             git archive FETCH_HEAD "results/$RUN_ID" | tar -x

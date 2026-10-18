@@ -36,6 +36,6 @@ for f in results/"$RUN_ID".*.console.log; do
 done
 rm -f "$tmp/.files"
 git -C "$tmp" add -f "results/$RUN_ID"
-git -C "$tmp" -c commit.gpgsign=false commit -q -m "results: $RUN_ID $NAME" || true
+git -C "$tmp" -c commit.gpgsign=false commit -q -m "results: $RUN_ID $NAME" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" || true
 git -C "$tmp" push -q -f origin "$branch"
 echo "pushed $branch"

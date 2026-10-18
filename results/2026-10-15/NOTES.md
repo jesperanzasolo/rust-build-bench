@@ -12,15 +12,29 @@ from scratch. No result was edited.
 
 | Pair | Harness commit | Why |
 |---|---|---|
-| ruff and rust-analyzer: cargo, cargo-sccache, cargo-rail; ruff: bazel | `db5190b` | original run |
-| ruff: buck2 | `02dfcab` | re-run: Reindeer install needed an explicit toolchain |
-| rust-analyzer: bazel, moon | `31751f6` | re-run: stale generated config broke checkout when a crate was added in the window |
+| ruff and rust-analyzer: cargo, cargo-sccache, cargo-rail; ruff: bazel | `a160724` | original run |
+| ruff: buck2 | `24561ed` | re-run: Reindeer install needed an explicit toolchain |
+| rust-analyzer: bazel, moon | `2301954` | re-run: stale generated config broke checkout when a crate was added in the window |
+
+## Commit IDs
+
+On 2026-10-18 the repository history was rewritten to correct commit authorship
+(no file contents changed). Harness commits above use the new IDs. The
+`harness_commit` field in each `provenance.json` still holds the old ID; the
+mapping for every commit is in [`commit-map.txt`](commit-map.txt) (old, new).
+
+| Old | New |
+|---|---|
+| `db5190b` | `a160724` |
+| `02dfcab` | `24561ed` |
+| `31751f6` | `2301954` |
+| `c499514` | `45726ef` |
 
 ## Gaps
 
 - **ruff / moon:** did not finish within budget; no result. The original moon run
   hit a project-graph cycle (Cargo allows dev-dependency cycles, moon does not).
-  The re-run with the fixed adapter (harness `c499514`) was cancelled after about
+  The re-run with the fixed adapter (harness `45726ef`) was cancelled after about
   3 hours, against a budget of about 1 hour per tool, still inside the ruff pair.
   The adapter runs `cargo nextest run -p <crate>` once per crate, and all 55 tasks
   serialise on one Cargo `target/` lock. This cannot change the ruff decision:

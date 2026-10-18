@@ -104,33 +104,50 @@ class BazelAdapter(Adapter):
         if ctx.corpus.metadata_args:
             default_ws = cargo_meta.load(ws_path, env=ctx.base_env())
         rv = corpus_rust_version(ws_path, env=ctx.base_env())
-        files, coverage = gen.generate(
-            ws, ctx.corpus,
-            rust_version=rv,
-            rules_rust_version=str(ctx.versions_cfg["rules_rust"]["version"]),
-            remote_cache=self._endpoint(),
-            output_user_root=str(self._output_user_root()),
-            repository_cache=str(self._repo_cache()),
-            bazel_version=str(ctx.versions_cfg["bazel"]["version"]),
-            rust_sha256s=self._rust_sha256s(rv),
-            test_env=gen.default_test_env(ctx.base_env()),
-            default_ws=default_ws,
-        )
-        for rel, text in files.items():
-            p = ws_path / rel
-            p.parent.mkdir(parents=True, exist_ok=True)
-            if not p.exists() or p.read_text() != text:
-                p.write_text(text)
-        (ws_path / gen.LAUNCHER_SCRIPT).chmod(0o755)
+        def write(hub_crates=None):
+            files, coverage = gen.generate(
+                ws, ctx.corpus,
+                rust_version=rv,
+                rules_rust_version=str(ctx.versions_cfg["rules_rust"]["version"]),
+                remote_cache=self._endpoint(),
+                output_user_root=str(self._output_user_root()),
+                repository_cache=str(self._repo_cache()),
+                bazel_version=str(ctx.versions_cfg["bazel"]["version"]),
+                rust_sha256s=self._rust_sha256s(rv),
+                test_env=gen.default_test_env(ctx.base_env()),
+                default_ws=default_ws,
+                hub_crates=hub_crates,
+            )
+            changed = False
+            for rel, text in files.items():
+                p = ws_path / rel
+                p.parent.mkdir(parents=True, exist_ok=True)
+                if not p.exists() or p.read_text() != text:
+                    p.write_text(text)
+                    changed = True
+            (ws_path / gen.LAUNCHER_SCRIPT).chmod(0o755)
+            return coverage, changed
+
+        def repin():
+            # Re-pin crate_universe for this commit (what `CARGO_BAZEL_REPIN=1` is for).
+            r = ctx.run(["bazel", "query", f"@{gen.CRATES_REPO}//:all", "--output=label"],
+                        scenario="sync", step="bazel-repin",
+                        env={**self.env(), "CARGO_BAZEL_REPIN": "true"})
+            if not r.ok:
+                raise RuntimeError(f"bazel crate_universe repin failed; see {r.log_path}")
+            text = Path(r.log_path).read_text(errors="replace")
+            return gen.hub_crates_from_query(text[text.rfind("\n$ (cd "):])
+
+        coverage, _ = write()
         lock = ws_path / gen.CARGO_BAZEL_LOCKFILE
         if not lock.exists():
             lock.write_text("")
-        # Re-pin crate_universe for this commit (what `CARGO_BAZEL_REPIN=1` is for).
-        r = ctx.run(["bazel", "query", f"@{gen.CRATES_REPO}//:all", "--output=label"],
-                    scenario="sync", step="bazel-repin",
-                    env={**self.env(), "CARGO_BAZEL_REPIN": "true"})
-        if not r.ok:
-            raise RuntimeError(f"bazel crate_universe repin failed; see {r.log_path}")
+        hub = repin()
+        if ws.registry_shadowed():
+            # Route shadowed members' deps by what the hub really defines.
+            coverage, changed = write(hub)
+            if changed:
+                repin()
         # Evaluate the extensions once more in the steady-state environment (no
         # CARGO_BAZEL_REPIN), so the timed run does not pay for the env change.
         ctx.run(["bazel", "query", f"@{gen.CRATES_REPO}//:all", "--output=label"],

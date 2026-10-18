@@ -375,6 +375,10 @@ class GenBazelFixesTest(unittest.TestCase):
         self.assertIn('crate.from_specs(', m)
         self.assertIn('use_repo(crate, "crates_rbb_shadow")', m)
 
+    def test_shadow_routing_follows_hub(self):
+        self.assertEqual(gen.shadow_only_deps(self.ws, {"quote-1.0.0"}), {})
+        self.assertEqual(gen.shadow_only_deps(self.ws, set()), {("quote", "1.0.0"): []})
+
     def test_skip_binaries(self):
         b = self.files["crates/core-lib/BUILD.bazel"]
         self.assertNotIn('name = "smoke_test"', b)
@@ -395,3 +399,9 @@ class GenBazelFixesTest(unittest.TestCase):
         env = gen.default_test_env({"RUSTUP_HOME": "/r", "CARGO_HOME": "/c", "HOME": "/h",
                                     "PATH": "/p", "CARGO_INCREMENTAL": "0", "X": "1"})
         self.assertEqual(env, {"RUSTUP_HOME": "/r", "CARGO_HOME": "/c", "X": "1"})
+
+
+class HubCratesTest(unittest.TestCase):
+    def test_parse_query(self):
+        text = "$ (cd ws && bazel query ...)\n@crates//:la-arena-0.3.1\n@crates//:serde\nINFO: x\n"
+        self.assertEqual(gen.hub_crates_from_query(text), {"la-arena-0.3.1", "serde"})

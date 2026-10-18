@@ -242,7 +242,20 @@ def _ws_dep_platforms(ws: Workspace) -> dict[tuple[str, str, str], list[str | No
 SHADOW_REPO = "crates_rbb_shadow"
 
 
-def shadow_only_deps(ws: Workspace) -> dict[tuple[str, str], list[str]]:
+def _resolved_features(ws: Workspace, name: str, version: str) -> list[str]:
+    nodes = {n["id"]: n for n in (ws.raw.get("resolve") or {}).get("nodes", [])}
+    for p in ws.raw["packages"]:
+        if p["name"] == name and p["version"] == version and p["id"] in nodes:
+            return sorted(nodes[p["id"]].get("features", []))
+    return []
+
+
+def hub_crates_from_query(text: str) -> set[str]:
+    """`<name>-<version>` targets from `bazel query @crates//:all --output=label`."""
+    return set(re.findall(rf"^@@?(?:rules_rust\+\+crate\+)?{CRATES_REPO}//:([^\s]+)$", text, re.M))
+
+
+def shadow_only_deps(ws: Workspace, hub_crates: set[str] | None = None) -> dict[tuple[str, str], list[str]]:
     """Third-party crates used only by registry-shadowed members (see
     Workspace.registry_shadowed): crate_universe drops those members, so it never
     resolves crates nothing else depends on. They get their own `crate.from_specs`
@@ -251,6 +264,17 @@ def shadow_only_deps(ws: Workspace) -> dict[tuple[str, str], list[str]]:
     shadowed = ws.registry_shadowed()
     if not shadowed:
         return {}
+    if hub_crates is not None:
+        # Exact: the `<name>-<version>` targets the from_cargo hub really defines
+        # (read back after the repin). Cargo's feature unification can make a crate
+        # look reachable that crate_universe never resolves (rust-analyzer's borsh).
+        out = {}
+        for p in ws.packages.values():
+            if p.name in shadowed:
+                for d in p.ext_deps:
+                    if f"{d.package}-{d.version}" not in hub_crates:
+                        out[(d.package, d.version)] = _resolved_features(ws, d.package, d.version)
+        return out
     raw = ws.raw
     by_id = {p["id"]: p for p in raw["packages"]}
     members = set(raw["workspace_members"])
@@ -1088,7 +1112,8 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
              bazel_version: str = "9.3.0", host_triple: str = "x86_64-unknown-linux-gnu",
              rust_sha256s: dict[str, str] | None = None, test_env: dict[str, str] | None = None,
              default_ws: Workspace | None = None,
-             cargo_bazel_lockfile: bool = True) -> tuple[dict[str, str], dict]:
+             cargo_bazel_lockfile: bool = True,
+             hub_crates: set[str] | None = None) -> tuple[dict[str, str], dict]:
     """Return ({repo_relative_path: text}, coverage).
 
     `ws` must be loaded WITHOUT excluding packages. `default_ws`, when given, is the
@@ -1104,7 +1129,7 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
         "ws_dep_platforms": _ws_dep_platforms(ws),
         "lib_target": {p.name: p.name for p in members},
         "shadowed": ws.registry_shadowed(),
-        "shadow_hub": set(shadow_only_deps(ws)),
+        "shadow_hub": set(shadow_only_deps(ws, hub_crates)),
         "dropped_features": {},
         "filegroups": {},          # pkg dir -> {filegroup name: [globs]}
         "outside_labels": {},      # pkg name -> [labels]
@@ -1173,7 +1198,7 @@ def generate(ws: Workspace, corpus: Corpus, *, rust_version: str, rules_rust_ver
         ws, rust_version=rust_version, rules_rust_version=rules_rust_version,
         edition=edition, platform_triples=[host_triple], rust_sha256s=rust_sha256s,
         cargo_bazel_lockfile=CARGO_BAZEL_LOCKFILE if cargo_bazel_lockfile else None,
-        shadow_specs=shadow_only_deps(ws))
+        shadow_specs=shadow_only_deps(ws, hub_crates))
     files[".bazelversion"] = bazel_version + "\n"
     # Directories no package may glob into: other tools' state, VCS metadata.
     files[".bazelignore"] = "".join(f"{d}\n" for d in BAZELIGNORE)

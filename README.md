@@ -16,35 +16,38 @@ Corpora: [ruff](https://github.com/astral-sh/ruff) and
 [rust-analyzer](https://github.com/rust-lang/rust-analyzer), each replayed over 10
 real merged pull requests.
 
-## Latest results (run 2026-10-15, preliminary)
+## Latest results (run 2026-10-18)
 
 Average PR CI time per commit on a fresh runner with a shared cache (5 real
-commits per repo, 8 vCPU runner). Lower is better.
+commits per repo). GitHub's standard 4 vCPU runners, one machine per tool and repo.
+Lower is better. Every tool ran the full test set and passed the correctness canary.
 
-| Tool | ruff | rust-analyzer | Stale results? |
-|---|---|---|---|
-| Cargo + nextest (baseline) | 303 s | 159 s | none |
-| Cargo + sccache | **198 s** (-35%) | 118 s (-25%) | none |
-| cargo-rail | 209 s (-31%) | **104 s** (-34%) | none |
-| moon | did not finish | 194 s (+22%) | none |
-| Bazel + rules_rust | 152 s (-50%)\* | 55 s\* | none |
-| Buck2 + Reindeer | 168 s (-45%)\* | could not build | none |
+| Tool | ruff | rust-analyzer |
+|---|---|---|
+| Cargo + nextest (baseline) | 793 s | 238 s |
+| Cargo + sccache | 717 s (-10%) | **168 s** (-30%) |
+| cargo-rail | 410 s (-48%) | 261 s (+9%) |
+| moon | 390 s (-51%) | 330 s (+38%) |
+| Bazel + rules_rust | **265 s** (-67%) | 230 s (-3%) |
+| Buck2 + Reindeer | 383 s (-52%) | 260 s (+9%) |
 
-\* Not like-for-like. Under the auto-generated configs Bazel fails a ruff test that
-runs `cargo build` itself and skips 14 of 43 rust-analyzer test targets; Buck2 fails
-one ruff test binary intermittently.
+- **No single winner.** On ruff, where most commits touch a crate many others depend
+  on, the tools that skip work (Bazel's cached test results, moon's and cargo-rail's
+  change-based selection) win big. On rust-analyzer, plain compile caching (sccache)
+  wins and the others barely beat Cargo or trail it.
+- **Bazel's edge is cached test results:** on ruff it reused 48 to 82 of 82 test
+  targets per commit, and a no-change run took 1 s (Cargo: 239 s).
+- **moon, set up properly, is the best Cargo-native tool on ruff**, mostly because it
+  ran only the affected crates' tests (10 to 44 of 55 per code commit).
+- **Decision rule:** ruff says "build" (Bazel 32% ahead of moon) but that is inside
+  the hardware noise; rust-analyzer says "use sccache". See the notes.
 
-- **sccache is the cheapest big win:** one wrapper setting (`RUSTC_WRAPPER=sccache`), a quarter to a third off PR CI.
-- **cargo-rail wins on deep crate graphs** and makes no-op runs near-instant
-  (1.4 s against 102 s on ruff), but on ruff its planner selects nearly every test.
-- **Bazel and Buck2 are faster on ruff mainly because they cache test results**,
-  at the cost of generated build files for every crate and about 2x the disk.
-- **No tool ever served a stale test result** (correctness canary).
-
-Caveats: one run per tool, so differences under ~15% may be noise; hermetic configs
-are generated, not expert-tuned; the shared cache has no network latency, which
-favours Bazel and Buck2. Full tables: [results/2026-10-15/REPORT.md](results/2026-10-15/REPORT.md);
-gaps and reruns: [NOTES.md](results/2026-10-15/NOTES.md).
+Caveats: one run per tool; GitHub gave jobs different CPU models (up to 26% apart on
+four cores), which alone moves the ruff gap from 32% to 17%; hermetic configs are
+generated, not expert-tuned; the shared cache has no network latency. Full tables:
+[results/2026-10-18/REPORT.md](results/2026-10-18/REPORT.md); notes:
+[NOTES.md](results/2026-10-18/NOTES.md). The earlier run, before the setup fixes,
+is in [results/2026-10-15](results/2026-10-15/).
 
 ## About
 

@@ -179,6 +179,64 @@ def _fmt(x, unit="s"):
     return str(x)
 
 
+def machines(run_dir: Path) -> dict:
+    """{corpus: {tool: {"cpu": model, "single": s, "parallel": s}}} from provenance."""
+    out: dict = {}
+    for f in sorted(run_dir.glob("*/*/provenance.json")):
+        try:
+            d = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        cal = d.get("calibration") or {}
+        out.setdefault(f.parent.parent.name, {})[f.parent.name] = {
+            "cpu": (d.get("machine") or {}).get("cpu_model"),
+            "single": cal.get("sha256_1GiB_single_s"),
+            "parallel": cal.get("sha256_512MiB_x4_parallel_s"),
+        }
+    return out
+
+
+def scaled_gap(summary: dict, decision: dict, mach: dict, corpus: str) -> float | None:
+    """Decision gap with fresh totals scaled to the slowest machine by 4-core
+    calibration, when the corpus ran on more than one CPU model; else None."""
+    m = mach.get(corpus, {})
+    d = decision["per_corpus"].get(corpus, {})
+    b, h = d.get("best_cargo_native"), d.get("best_hermetic")
+    if len({x.get("cpu") for x in m.values() if x.get("cpu")}) < 2 or not (b and h):
+        return None
+    if not all(m.get(t, {}).get("parallel") for t in (b, h)):
+        return None
+    ref = max(x["parallel"] for x in m.values() if x.get("parallel"))
+    adj = {t: summary[corpus][t]["replay_fresh"]["total_s"] * ref / m[t]["parallel"] for t in (b, h)}
+    return 1 - adj[h] / adj[b]
+
+
+def _hardware_lines(summary: dict, decision: dict, mach: dict) -> list[str]:
+    """Machine table per corpus and, when CPU models differ, the decision gap with
+    times scaled by each machine's parallel calibration (a sensitivity check only;
+    the pre-registered rule uses raw times)."""
+    L: list[str] = []
+    for corpus, tools in summary.items():
+        m = mach.get(corpus, {})
+        if not m:
+            continue
+        L += [f"### Machines, {corpus}", "",
+              "| Tool | CPU | Calibration, 1 core (s) | Calibration, 4 cores (s) |", "|---|---|---|---|"]
+        for t in sorted(tools):
+            x = m.get(t, {})
+            L.append(f"| `{t}` | {x.get('cpu') or 'n/a'} | {_fmt(x.get('single'), '')} | {_fmt(x.get('parallel'), '')} |")
+        L.append("")
+        cpus = {x.get("cpu") for x in m.values() if x.get("cpu")}
+        d = decision["per_corpus"].get(corpus, {})
+        b, h = d.get("best_cargo_native"), d.get("best_hermetic")
+        gap = scaled_gap(summary, decision, mach, corpus)
+        if gap is not None:
+            L += [f"> {corpus}: tools ran on {len(cpus)} different CPU models. Scaled to the slowest "
+                  f"machine by 4-core calibration, `{h}` vs `{b}` is {gap:+.0%} (raw: {d.get('gap_fresh', 0):+.0%}). "
+                  "Treat a verdict whose gap changes side of the threshold under this scaling as inconclusive.", ""]
+    return L
+
+
 def render(summary: dict, decision: dict, run_dir: Path) -> str:
     L = [f"# Results: {run_dir.name}", ""]
     ov = decision["overall"]
@@ -194,6 +252,14 @@ def render(summary: dict, decision: dict, run_dir: Path) -> str:
         for t, why in d.get("ineligible", {}).items():
             L.append(f"  - Not eligible: `{t}`: {why}")
     L += ["", f"Overall: **{ov}** (rule in METHODOLOGY.md, pre-registered threshold {THRESHOLD:.0%}).", ""]
+    mach = machines(run_dir)
+    for corpus, d in decision["per_corpus"].items():
+        g = scaled_gap(summary, decision, mach, corpus)
+        raw = d.get("gap_fresh")
+        if g is not None and raw is not None and (raw > THRESHOLD) != (g > THRESHOLD):
+            L += [f"> **{corpus}: inconclusive.** The tools ran on different CPU models; scaled by CPU "
+                  f"calibration the gap is {g:+.0%} instead of {raw:+.0%}, the other side of the "
+                  f"{THRESHOLD:.0%} threshold. Rerun on one CPU model before acting on it (see Machines).", ""]
     wo = decision.get("without_exclusions")
     if wo:
         L += ["Without the documented exclusions (`exclusions.toml`): " + "; ".join(
@@ -239,6 +305,9 @@ def render(summary: dict, decision: dict, run_dir: Path) -> str:
                      f"{f['failures']}/{w['failures']} | {_fmt(f['sync_total_s'] + w['sync_total_s'])} | "
                      f"{_fmt(f['post_merge_total_s']) if f['post_merge_total_s'] else '-'} |")
         L.append("")
+    hw = _hardware_lines(summary, decision, machines(run_dir))
+    if hw:
+        L += ["## Machines", ""] + hw
     L += ["Raw per-step records: `**/results.jsonl`. Provenance: `**/provenance.json`.", ""]
     return "\n".join(L)
 

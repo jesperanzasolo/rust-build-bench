@@ -127,11 +127,20 @@ planning-evidence recording) is measured and reported separately as
 
 ## Machines
 
-Each tool runs in its own GitHub Actions job on a fresh Namespace runner of the
-same profile (`namespace-profile-standard-8`: 8 vCPU, 16 GiB, Ubuntu 24.04,
-x86_64), with nothing else on the machine. Both corpora run back to back in that
-job. Each job runs a fixed CPU calibration workload first; it is reported with the
-results so a noisy machine can be spotted. Numbers are not normalised by it.
+Each (corpus, tool) pair runs in its own GitHub Actions job on a fresh runner of
+one profile, with nothing else on the machine. Every run states its runner profile
+in its notes: run 2026-10-15 used Namespace `standard-8` (8 vCPU, 16 GiB); run
+2026-10-18 used GitHub's standard `ubuntu-24.04` (4 vCPU, 16 GiB). Results are
+compared only within a run.
+
+Each job runs a fixed CPU calibration workload first and records the CPU model.
+The report lists both per pair. Numbers are not normalised by calibration, but
+when CPU models differ within a corpus the report also shows the decision gap with
+times scaled by four-core calibration; a verdict that changes side of the threshold
+under that scaling is reported as inconclusive. A run can require one CPU model
+(`REQUIRE_CPU` in `bench-run.env`); jobs on other models then fail at once and are
+re-run.
+
 The workflow is [`.github/workflows/bench.yml`](.github/workflows/bench.yml);
 `./run.sh` runs the same protocol on any Linux machine.
 

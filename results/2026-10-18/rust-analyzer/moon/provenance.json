@@ -1,0 +1,214 @@
+{
+ "bench": {
+  "canary": true,
+  "cold_samples": 1,
+  "fresh_commits": 5,
+  "noop_samples": 3,
+  "scenarios": [
+   "cold",
+   "noop",
+   "replay-warm",
+   "replay-fresh",
+   "canary"
+  ],
+  "step_timeout_s": 5400,
+  "warm_commits": 10
+ },
+ "calibration": {
+  "sha256_1GiB_single_s": 0.678,
+  "sha256_512MiB_x4_parallel_s": 0.401
+ },
+ "corpus": {
+  "canary": {
+   "downstream": "ide",
+   "upstream": "stdx"
+  },
+  "cargo_args": [],
+  "commit": "dd5ed69d4b5b26fe7f91013b1d02608cd37ae199",
+  "description": "Rust language server. Deep crate graph, many fast unit tests.",
+  "env": {
+   "RUSTUP_TOOLCHAIN": "1.99.0"
+  },
+  "exclude_packages": [],
+  "extra_data": {
+   "hir-ty": [
+    "bench_data/**"
+   ],
+   "ide": [
+    "bench_data/**"
+   ],
+   "ide-db": [
+    "bench_data/**"
+   ],
+   "ide-diagnostics": [
+    "bench_data/**"
+   ],
+   "mbe": [
+    "bench_data/**"
+   ],
+   "rust-analyzer": [
+    "bench_data/**",
+    "editors/code/package.json",
+    "docs/book/src/**"
+   ],
+   "syntax": [
+    "crates/parser/test_data/**",
+    "bench_data/**"
+   ]
+  },
+  "kind": "git",
+  "metadata_args": [],
+  "name": "rust-analyzer",
+  "replay_commits": 10,
+  "repo": "https://github.com/rust-lang/rust-analyzer",
+  "skip_binaries": [
+   "xtask",
+   "smol_str/tidy"
+  ],
+  "skip_tests": [
+   "test_format_document",
+   "self_hosting_parsing"
+  ],
+  "synthetic": {},
+  "toolchain_components": [
+   "rust-src"
+  ]
+ },
+ "harness_commit": "db8a6613db12f4d0b04c9d20eeaa74036c2b356a",
+ "harness_dirty": true,
+ "harness_version": "0.1.0",
+ "installed_binaries": {
+  "bazel-remote@2.6.3": {
+   "bazel-remote": "65427624c288e29b17c7b0e189cf1d03ae1d8745354d9effc432f75c4361159a"
+  },
+  "cargo-nextest@0.9.148": {
+   "cargo-nextest": "53470cfc9b5cbcd96780db2d348700d76af962467503791f1f8a8824d8967e5c"
+  },
+  "moon@2.6.2": {
+   "moon": "1947d8334b73d9fa314cca9dc14e2450ddf7ce495ae4bf7157ab6d5790ebf063"
+  },
+  "uv@0.13.1": {
+   "uv": "db919fb9428cc8ad04377ba3c898e0ec5fbee83700da5b982b1c9539f1e1b34f"
+  }
+ },
+ "machine": {
+  "cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "hostname_hash": "babcff27cb95",
+  "mem_total_kib": 16373452,
+  "nproc": 4,
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "python": "3.12.3"
+ },
+ "pinned_versions": {
+  "bazel": {
+   "version": "9.3.0"
+  },
+  "bazel-remote": {
+   "binaries": [
+    "bazel-remote"
+   ],
+   "format": "bin",
+   "rename": "bazel-remote",
+   "url": "https://github.com/buchgr/bazel-remote/releases/download/v{version}/bazel-remote-{version}-linux-amd64",
+   "version": "2.6.3"
+  },
+  "bazelisk": {
+   "binaries": [
+    "bazel"
+   ],
+   "format": "bin",
+   "rename": "bazel",
+   "url": "https://github.com/bazelbuild/bazelisk/releases/download/v{version}/bazelisk-linux-amd64",
+   "version": "1.29.0"
+  },
+  "buck2": {
+   "binaries": [
+    "buck2"
+   ],
+   "format": "zst",
+   "rename": "buck2",
+   "url": "https://github.com/facebook/buck2/releases/download/{version}/buck2-x86_64-unknown-linux-gnu.zst",
+   "version": "2026-10-15"
+  },
+  "cargo-nextest": {
+   "binaries": [
+    "cargo-nextest"
+   ],
+   "format": "tar.gz",
+   "url": "https://get.nexte.st/{version}/linux",
+   "version": "0.9.148"
+  },
+  "cargo-rail": {
+   "binaries": [
+    "cargo-rail"
+   ],
+   "format": "zip",
+   "keep_dir": true,
+   "sums_url": "https://github.com/loadingalias/cargo-rail/releases/download/v{version}/SHA256SUMS",
+   "url": "https://github.com/loadingalias/cargo-rail/releases/download/v{version}/cargo-rail-x86_64-unknown-linux-gnu.zip",
+   "version": "0.31.1"
+  },
+  "moon": {
+   "binaries": [
+    "moon"
+   ],
+   "installer": "https://moonrepo.dev/install/moon.sh",
+   "version": "2.6.2"
+  },
+  "reindeer": {
+   "binaries": [
+    "reindeer"
+   ],
+   "cargo_install": {
+    "crate": "reindeer",
+    "git": "https://github.com/facebookincubator/reindeer",
+    "tag": "{version}"
+   },
+   "version": "v2026.10.12.00"
+  },
+  "rules_rust": {
+   "version": "0.74.0"
+  },
+  "rust": {},
+  "sccache": {
+   "binaries": [
+    "sccache"
+   ],
+   "format": "tar.gz",
+   "url": "https://github.com/mozilla/sccache/releases/download/v{version}/sccache-v{version}-x86_64-unknown-linux-musl.tar.gz",
+   "version": "0.18.0"
+  },
+  "uv": {
+   "binaries": [
+    "uv"
+   ],
+   "format": "tar.gz",
+   "url": "https://github.com/astral-sh/uv/releases/download/{version}/uv-x86_64-unknown-linux-gnu.tar.gz",
+   "version": "0.13.1"
+  }
+ },
+ "replay_window": [
+  "7df9dc518165068c237b9fe3d121b0cb3cccc061",
+  "610eb35d863dec5b6bc7035a1bd9dcb7eb6f44b0",
+  "147b1d172ad3bfa6b1591727af1b023fa161e3c0",
+  "f0eebde07a4ad1dea72dc26a4e98d3de1525b082",
+  "53ff7caf4c01c90e19c67568848084e15a4ddc78",
+  "d30166208b9a95c6ee494055ccb454867b022735",
+  "4fc8c3190fabb2dcae69a2c9e82a3af4da499232",
+  "d670b25f77d49c3ddc56b78d595a68d83dbb3492",
+  "4f6cca7373144c13a7717c83bdb9e5bf964c8ebb",
+  "7b59b47a9e6bcb436d6872771ff93f3079efd751",
+  "dd5ed69d4b5b26fe7f91013b1d02608cd37ae199"
+ ],
+ "run_id": "2026-10-18",
+ "rust_toolchain": "1.99.0",
+ "schema": "rbb.provenance/v1",
+ "started": "2026-10-18T18:17:30+00:00",
+ "tool": "moon",
+ "tool_versions": {
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)",
+  "cargo-nextest": "cargo-nextest 0.9.148 (cd1d6d546 2026-10-07)",
+  "moon": "moon 2.6.2",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)"
+ }
+}

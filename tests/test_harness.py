@@ -178,3 +178,16 @@ class SkipBinariesTest(unittest.TestCase):
         a, _ = self._adapter([])
         self.assertEqual(a.filter_args(), [])
         self.assertEqual(a.filter_args("package(=x)"), ["-E", "package(=x)"])
+
+
+class HardwareLinesTest(unittest.TestCase):
+    def test_scaled_gap_reported_when_cpus_differ(self):
+        summary = {"c": {"moon": {"family": "cargo-native", "replay_fresh": {"total_s": 1948}},
+                         "bazel": {"family": "hermetic", "replay_fresh": {"total_s": 1327}}}}
+        decision = {"per_corpus": {"c": {"best_cargo_native": "moon", "best_hermetic": "bazel", "gap_fresh": 0.319}}}
+        mach = {"c": {"moon": {"cpu": "Xeon", "single": 0.529, "parallel": 0.428},
+                      "bazel": {"cpu": "EPYC 9V45", "single": 0.491, "parallel": 0.351}}}
+        text = "\n".join(report._hardware_lines(summary, decision, mach))
+        self.assertIn("2 different CPU models", text)
+        self.assertIn("+17%", text)
+        self.assertIn("+32%", text)

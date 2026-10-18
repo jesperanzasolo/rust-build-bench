@@ -15,6 +15,13 @@ commit it used, so any result can be traced to the exact state described here.
 - Decision rule: hermetic tool must beat the best Cargo-native tool by more than
   20% on replay-fresh total time to justify building a new tool.
 
+## Run 2026-10-18
+
+- First run with the fixes below, every pair on harness `e2a8307`, on GitHub's
+  standard 4 vCPU runners (one job per tool and corpus).
+- Report: a machines table per corpus, and the decision gap scaled by CPU
+  calibration when CPU models differ. Workflow: optional `REQUIRE_CPU`.
+
 ## After run 2026-10-15
 
 Setup fixes found by run 2026-10-15; every tool is re-run on one harness commit.

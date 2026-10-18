@@ -1,0 +1,327 @@
+{
+ "build_targets": 51,
+ "dropped_features": {},
+ "not_emitted": [
+  "doctests (nextest does not run them)",
+  "benches and examples (not run by `cargo test`/nextest by default)"
+ ],
+ "packages": 45,
+ "per_package": {
+  "base-db": {
+   "excluded": false,
+   "tests": [
+    "base-db_unit_test"
+   ]
+  },
+  "cfg": {
+   "excluded": false,
+   "tests": [
+    "cfg_unit_test"
+   ]
+  },
+  "edition": {
+   "excluded": false,
+   "tests": [
+    "edition_unit_test"
+   ]
+  },
+  "hir": {
+   "excluded": false,
+   "tests": [
+    "hir_unit_test"
+   ]
+  },
+  "hir-def": {
+   "excluded": false,
+   "tests": [
+    "hir-def_unit_test"
+   ]
+  },
+  "hir-expand": {
+   "excluded": false,
+   "tests": [
+    "hir-expand_unit_test"
+   ]
+  },
+  "hir-ide": {
+   "excluded": false,
+   "tests": [
+    "hir-ide_unit_test"
+   ]
+  },
+  "hir-ty": {
+   "excluded": false,
+   "tests": [
+    "hir-ty_unit_test"
+   ]
+  },
+  "ide": {
+   "excluded": false,
+   "tests": [
+    "ide_unit_test",
+    "rbb_canary_test"
+   ]
+  },
+  "ide-assists": {
+   "excluded": false,
+   "tests": [
+    "ide-assists_unit_test"
+   ]
+  },
+  "ide-completion": {
+   "excluded": false,
+   "tests": [
+    "ide-completion_unit_test"
+   ]
+  },
+  "ide-db": {
+   "excluded": false,
+   "tests": [
+    "ide-db_unit_test"
+   ]
+  },
+  "ide-diagnostics": {
+   "excluded": false,
+   "tests": [
+    "ide-diagnostics_unit_test"
+   ]
+  },
+  "ide-ssr": {
+   "excluded": false,
+   "tests": [
+    "ide-ssr_unit_test"
+   ]
+  },
+  "intern": {
+   "excluded": false,
+   "tests": [
+    "intern_unit_test"
+   ]
+  },
+  "la-arena": {
+   "excluded": false,
+   "tests": [
+    "la-arena_unit_test"
+   ]
+  },
+  "line-index": {
+   "excluded": false,
+   "tests": [
+    "line-index_unit_test"
+   ]
+  },
+  "load-cargo": {
+   "excluded": false,
+   "tests": [
+    "load-cargo_unit_test"
+   ]
+  },
+  "lsp-server": {
+   "excluded": false,
+   "tests": [
+    "lsp-server_unit_test"
+   ]
+  },
+  "macros": {
+   "excluded": false,
+   "tests": [
+    "macros_unit_test"
+   ]
+  },
+  "mbe": {
+   "excluded": false,
+   "tests": [
+    "mbe_unit_test"
+   ]
+  },
+  "parser": {
+   "excluded": false,
+   "tests": [
+    "parser_unit_test"
+   ]
+  },
+  "paths": {
+   "excluded": false,
+   "tests": [
+    "paths_unit_test"
+   ]
+  },
+  "proc-macro-api": {
+   "excluded": false,
+   "tests": [
+    "proc-macro-api_unit_test"
+   ]
+  },
+  "proc-macro-srv": {
+   "excluded": false,
+   "tests": [
+    "proc-macro-srv_unit_test"
+   ]
+  },
+  "proc-macro-srv-cli": {
+   "excluded": false,
+   "tests": [
+    "proc-macro-srv-cli_unit_test",
+    "rust-analyzer-proc-macro-srv_bin_unit_test",
+    "bidirectional_postcard_test",
+    "legacy_json_test"
+   ]
+  },
+  "proc-macro-test": {
+   "excluded": false,
+   "tests": [
+    "proc-macro-test_unit_test"
+   ]
+  },
+  "profile": {
+   "excluded": false,
+   "tests": [
+    "profile_unit_test"
+   ]
+  },
+  "project-model": {
+   "excluded": false,
+   "tests": [
+    "project-model_unit_test"
+   ]
+  },
+  "rust-analyzer": {
+   "excluded": false,
+   "tests": [
+    "rust-analyzer_unit_test",
+    "rust-analyzer_bin_bin_unit_test",
+    "slow-tests_test"
+   ]
+  },
+  "smol_str": {
+   "excluded": false,
+   "tests": [
+    "smol_str_unit_test",
+    "test_test"
+   ]
+  },
+  "span": {
+   "excluded": false,
+   "tests": [
+    "span_unit_test"
+   ]
+  },
+  "stdx": {
+   "excluded": false,
+   "tests": [
+    "stdx_unit_test"
+   ]
+  },
+  "syntax": {
+   "excluded": false,
+   "tests": [
+    "syntax_unit_test"
+   ]
+  },
+  "syntax-bridge": {
+   "excluded": false,
+   "tests": [
+    "syntax-bridge_unit_test"
+   ]
+  },
+  "test-fixture": {
+   "excluded": false,
+   "tests": [
+    "test-fixture_unit_test"
+   ]
+  },
+  "test-utils": {
+   "excluded": false,
+   "tests": [
+    "test-utils_unit_test"
+   ]
+  },
+  "text-size": {
+   "excluded": false,
+   "tests": [
+    "text-size_unit_test",
+    "auto_traits_test",
+    "constructors_test",
+    "indexing_test",
+    "main_test"
+   ]
+  },
+  "toolchain": {
+   "excluded": false,
+   "tests": [
+    "toolchain_unit_test"
+   ]
+  },
+  "tt": {
+   "excluded": false,
+   "tests": [
+    "tt_unit_test"
+   ]
+  },
+  "ungrammar": {
+   "excluded": false,
+   "tests": [
+    "ungrammar_unit_test"
+   ]
+  },
+  "ungrammar2json": {
+   "excluded": false,
+   "tests": [
+    "ungrammar2json_bin_unit_test"
+   ]
+  },
+  "vfs": {
+   "excluded": false,
+   "tests": [
+    "vfs_unit_test"
+   ]
+  },
+  "vfs-notify": {
+   "excluded": false,
+   "tests": [
+    "vfs-notify_unit_test"
+   ]
+  },
+  "xtask": {
+   "excluded": false,
+   "tests": []
+  }
+ },
+ "profile_rustc_flags": {
+  "extra": [
+   "-Cdebuginfo=1"
+  ],
+  "per_crate": [
+   "external/rules_rust++crate+crates__dissimilar-1.0.11/@-Copt-level=3",
+   "external/rules_rust++crate+crates__miniz_oxide-0.8.9/@-Copt-level=3",
+   "external/rules_rust++crate+crates__rowan-0.17.0/@-Copt-level=3",
+   "external/rules_rust++crate+crates__rustc-hash-1.1.0/@-Copt-level=3",
+   "external/rules_rust++crate+crates__rustc-hash-2.1.2/@-Copt-level=3",
+   "external/rules_rust++crate+crates__salsa-0.28.5/@-Copt-level=3",
+   "external/rules_rust++crate+crates__serde-1.0.228/@-Copt-level=3",
+   "//lib/smol_str:@-Copt-level=3",
+   "//lib/text-size:@-Copt-level=3"
+  ]
+ },
+ "skipped": [
+  {
+   "kind": "test",
+   "package": "smol_str",
+   "reason": "corpus skip_binaries",
+   "target": "tidy"
+  },
+  {
+   "kind": "test",
+   "package": "text-size",
+   "reason": "required-features not enabled: ['serde']",
+   "target": "serde"
+  },
+  {
+   "kind": "bin-test",
+   "package": "xtask",
+   "reason": "corpus skip_binaries",
+   "target": "xtask"
+  }
+ ],
+ "test_targets": 55
+}

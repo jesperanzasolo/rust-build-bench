@@ -1,0 +1,395 @@
+{
+ "build_targets": 63,
+ "dropped_features": {
+  "ruff_benchmark": [
+   "codspeed",
+   "codspeed-criterion-compat"
+  ]
+ },
+ "not_emitted": [
+  "doctests (nextest does not run them)",
+  "benches and examples (not run by `cargo test`/nextest by default)"
+ ],
+ "packages": 55,
+ "per_package": {
+  "mdtest": {
+   "excluded": false,
+   "tests": [
+    "mdtest_unit_test"
+   ]
+  },
+  "ruff": {
+   "excluded": false,
+   "tests": [
+    "ruff_unit_test",
+    "ruff_bin_bin_unit_test",
+    "analyze_graph_test",
+    "cli_test",
+    "config_test",
+    "direxist_guard_test",
+    "integration_test_test",
+    "resolve_files_test"
+   ]
+  },
+  "ruff_annotate_snippets": {
+   "excluded": false,
+   "tests": [
+    "color_test",
+    "formatter_test",
+    "ruff_test",
+    "rustc_tests_test"
+   ]
+  },
+  "ruff_benchmark": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_cache": {
+   "excluded": false,
+   "tests": [
+    "cache_key_test"
+   ]
+  },
+  "ruff_command_line": {
+   "excluded": false,
+   "tests": [
+    "ruff_command_line_unit_test"
+   ]
+  },
+  "ruff_db": {
+   "excluded": false,
+   "tests": [
+    "ruff_db_unit_test"
+   ]
+  },
+  "ruff_dev": {
+   "excluded": false,
+   "tests": [
+    "ruff_dev_bin_unit_test"
+   ]
+  },
+  "ruff_diagnostics": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_formatter": {
+   "excluded": false,
+   "tests": [
+    "ruff_formatter_unit_test"
+   ]
+  },
+  "ruff_graph": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_index": {
+   "excluded": false,
+   "tests": [
+    "ruff_index_unit_test"
+   ]
+  },
+  "ruff_linter": {
+   "excluded": false,
+   "tests": [
+    "ruff_linter_unit_test",
+    "rbb_canary_test"
+   ]
+  },
+  "ruff_macros": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_markdown": {
+   "excluded": false,
+   "tests": [
+    "ruff_markdown_unit_test"
+   ]
+  },
+  "ruff_mdtest": {
+   "excluded": false,
+   "tests": [
+    "mdtest_test"
+   ]
+  },
+  "ruff_memory_usage": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_notebook": {
+   "excluded": false,
+   "tests": [
+    "ruff_notebook_unit_test"
+   ]
+  },
+  "ruff_options_metadata": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_python_ast": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_ast_unit_test"
+   ]
+  },
+  "ruff_python_ast_integration_tests": {
+   "excluded": false,
+   "tests": [
+    "comparable_test",
+    "identifier_test",
+    "match_pattern_test",
+    "parentheses_test",
+    "parenthesize_test",
+    "source_order_test",
+    "stmt_if_test",
+    "visitor_test"
+   ]
+  },
+  "ruff_python_codegen": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_codegen_unit_test"
+   ]
+  },
+  "ruff_python_edits": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_edits_unit_test"
+   ]
+  },
+  "ruff_python_formatter": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_formatter_unit_test",
+    "ruff_python_formatter_bin_bin_unit_test",
+    "fixtures_test",
+    "normalizer_test"
+   ]
+  },
+  "ruff_python_importer": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_importer_unit_test"
+   ]
+  },
+  "ruff_python_index": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_index_unit_test"
+   ]
+  },
+  "ruff_python_literal": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_literal_unit_test"
+   ]
+  },
+  "ruff_python_parser": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_parser_unit_test",
+    "fixtures_test",
+    "generate_inline_tests_test"
+   ]
+  },
+  "ruff_python_semantic": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_semantic_unit_test"
+   ]
+  },
+  "ruff_python_stdlib": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_stdlib_unit_test"
+   ]
+  },
+  "ruff_python_trivia": {
+   "excluded": false,
+   "tests": [
+    "ruff_python_trivia_unit_test"
+   ]
+  },
+  "ruff_python_trivia_integration_tests": {
+   "excluded": false,
+   "tests": [
+    "block_comments_test",
+    "simple_tokenizer_test",
+    "whitespace_test"
+   ]
+  },
+  "ruff_ranged_value": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_server": {
+   "excluded": false,
+   "tests": [
+    "ruff_server_unit_test",
+    "document_test",
+    "e2e_test"
+   ]
+  },
+  "ruff_source_file": {
+   "excluded": false,
+   "tests": [
+    "ruff_source_file_unit_test"
+   ]
+  },
+  "ruff_text_size": {
+   "excluded": false,
+   "tests": [
+    "auto_traits_test",
+    "constructors_test",
+    "indexing_test",
+    "main_test",
+    "serde_test"
+   ]
+  },
+  "ruff_unicode_names2": {
+   "excluded": false,
+   "tests": []
+  },
+  "ruff_unicode_names2_generator": {
+   "excluded": false,
+   "tests": [
+    "ruff_unicode_names2_generator_unit_test"
+   ]
+  },
+  "ruff_wasm": {
+   "excluded": false,
+   "tests": [
+    "api_test"
+   ]
+  },
+  "ruff_workspace": {
+   "excluded": false,
+   "tests": [
+    "ruff_workspace_unit_test"
+   ]
+  },
+  "ty": {
+   "excluded": false,
+   "tests": [
+    "ty_unit_test",
+    "ty_bin_bin_unit_test",
+    "cli_test",
+    "file_watching_test",
+    "self_environment_test"
+   ]
+  },
+  "ty_combine": {
+   "excluded": false,
+   "tests": [
+    "ty_combine_unit_test"
+   ]
+  },
+  "ty_completion_bench": {
+   "excluded": false,
+   "tests": [
+    "ty_completion_bench_bin_unit_test"
+   ]
+  },
+  "ty_completion_eval": {
+   "excluded": false,
+   "tests": [
+    "ty_completion_eval_bin_unit_test"
+   ]
+  },
+  "ty_ide": {
+   "excluded": false,
+   "tests": [
+    "ty_ide_unit_test"
+   ]
+  },
+  "ty_module_resolver": {
+   "excluded": false,
+   "tests": [
+    "ty_module_resolver_unit_test"
+   ]
+  },
+  "ty_project": {
+   "excluded": false,
+   "tests": [
+    "ty_project_unit_test"
+   ]
+  },
+  "ty_python_core": {
+   "excluded": false,
+   "tests": [
+    "ty_python_core_unit_test"
+   ]
+  },
+  "ty_python_semantic": {
+   "excluded": false,
+   "tests": [
+    "ty_python_semantic_unit_test",
+    "corpus_test",
+    "mdtest_test"
+   ]
+  },
+  "ty_server": {
+   "excluded": false,
+   "tests": [
+    "ty_server_unit_test"
+   ]
+  },
+  "ty_site_packages": {
+   "excluded": false,
+   "tests": [
+    "ty_site_packages_unit_test"
+   ]
+  },
+  "ty_static": {
+   "excluded": false,
+   "tests": []
+  },
+  "ty_test": {
+   "excluded": false,
+   "tests": [
+    "ty_test_unit_test"
+   ]
+  },
+  "ty_vendored": {
+   "excluded": false,
+   "tests": [
+    "ty_vendored_unit_test"
+   ]
+  },
+  "ty_wasm": {
+   "excluded": false,
+   "tests": [
+    "api_test"
+   ]
+  }
+ },
+ "profile_rustc_flags": {
+  "extra": [
+   "-Copt-level=1",
+   "-Cdebuginfo=line-tables-only",
+   "-Cdebug-assertions=on",
+   "-Coverflow-checks=on"
+  ],
+  "per_crate": [
+   "external/rules_rust++crate+crates__insta-1.48.0/@-Copt-level=3",
+   "//crates/ruff_python_parser:@-Copt-level=1",
+   "external/rules_rust++crate+crates__salsa-0.28.5/@-Copt-level=3",
+   "external/rules_rust++crate+crates__similar-2.7.0/@-Copt-level=3",
+   "external/rules_rust++crate+crates__similar-3.2.0/@-Copt-level=3"
+  ]
+ },
+ "skipped": [
+  {
+   "kind": "test",
+   "package": "ruff_annotate_snippets",
+   "reason": "corpus skip_binaries",
+   "target": "examples"
+  },
+  {
+   "kind": "test",
+   "package": "ty_server",
+   "reason": "corpus skip_binaries",
+   "target": "e2e"
+  }
+ ],
+ "test_targets": 83
+}

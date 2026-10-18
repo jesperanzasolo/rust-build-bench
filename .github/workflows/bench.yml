@@ -1,8 +1,9 @@
 # Runs the benchmark, one job (one fresh machine) per (tool, corpus) pair.
 #
 # Start a run by pushing a branch named bench/<anything> whose bench-run.env sets
-# RUN_ID, CORPORA and TOOLS (and optionally RUNNER, default ubuntu-24.04: GitHub's
-# standard 4 vCPU / 16 GB runner), or with "Run workflow" in the Actions tab.
+# RUN_ID, CORPORA and TOOLS (optionally RUNNER, default ubuntu-24.04: GitHub's
+# standard 4 vCPU / 16 GB runner, and REQUIRE_CPU, a CPU model substring every job
+# must run on), or with "Run workflow" in the Actions tab.
 # Each job publishes its results to the branch run/<RUN_ID>/<tool>--<corpus>; the
 # report job merges them into run/<RUN_ID>/report.
 name: bench
@@ -35,6 +36,7 @@ jobs:
       suffix: ${{ steps.p.outputs.suffix }}
       runner: ${{ steps.p.outputs.runner }}
       pairs: ${{ steps.p.outputs.pairs }}
+      cpu: ${{ steps.p.outputs.cpu }}
     steps:
       - uses: actions/checkout@v5
       - id: p
@@ -50,6 +52,7 @@ jobs:
           TOOLS=${IN_TOOLS:-$TOOLS}; BENCH=${IN_BENCH:-${BENCH:-bench.toml}}
           RUNNER=${IN_RUNNER:-${RUNNER:-ubuntu-24.04}}
           echo "runner=$RUNNER" >> "$GITHUB_OUTPUT"
+          echo "cpu=${REQUIRE_CPU:-}" >> "$GITHUB_OUTPUT"
           echo "pairs=$(python3 -c 'import json,sys; print(json.dumps([{"tool": t, "corpus": c} for t in sys.argv[1].split(",") for c in sys.argv[2].split(",")]))' "$TOOLS" "$CORPORA")" >> "$GITHUB_OUTPUT"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "corpora=$CORPORA" >> "$GITHUB_OUTPUT"
@@ -85,8 +88,16 @@ jobs:
             /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/boost
           sudo docker image prune --all --force >/dev/null || true
       - name: Machine
+        env:
+          REQUIRE_CPU: ${{ needs.plan.outputs.cpu }}
         run: |
           nproc; free -g; df -h / /mnt 2>/dev/null; grep -m1 'model name' /proc/cpuinfo; python3 --version
+          # Optional: insist on one CPU model so every pair is timed on the same
+          # hardware (GitHub mixes models). A job on another model fails here at once;
+          # re-run the failed jobs until all land on the required model.
+          if [ -n "$REQUIRE_CPU" ] && ! grep -m1 'model name' /proc/cpuinfo | grep -qF "$REQUIRE_CPU"; then
+            echo "::error::CPU is not '$REQUIRE_CPU'; re-run this job"; exit 1
+          fi
           git config --global user.name "Jonathan Esperanza"
           git config --global user.email "9872176+jesperanzasolo@users.noreply.github.com"
           # Work on whichever disk has the most free space.

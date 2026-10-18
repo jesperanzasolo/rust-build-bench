@@ -44,10 +44,19 @@ Each corpus is pinned to a commit. The **replay window** is the N first-parent
 commits ending at that commit: N real merged pull requests, in order, exactly as
 CI on the default branch saw them. No synthetic edits are used for timing.
 
+### Test scope
+
 Test scope is identical for every tool and comes from the corpus file: the same
 crates, the same feature flags (e.g. ruff's CI uses `--all-features`), the same
 skipped tests. Host tools the corpus' tests call (e.g. `uv` for ruff) are pinned
 and placed first on `PATH` for every tool, including inside Bazel's test sandbox.
+
+A corpus can skip tests for every tool, never for one: `skip_binaries` drops whole
+test binaries and `skip_tests` drops individual tests by name. Only tests that check
+the environment rather than the code are skipped, and each one is listed with its
+reason in the corpus file: tests that need tools a CI runner does not have (a
+nightly `rustfmt`, a git history), tests that run `cargo build` themselves, and
+tests that walk the whole repository.
 
 ## Scenarios
 
@@ -130,7 +139,10 @@ The workflow is [`.github/workflows/bench.yml`](.github/workflows/bench.yml);
 
 For each corpus:
 
-1. Drop ineligible tools: any canary failure, or (when the `cargo` baseline passes
+1. Drop ineligible tools: any canary failure; a different test set on the cold run
+   (a hermetic tool that runs fewer test targets than its generated config defines,
+   because some did not build or load, or a Cargo-native tool whose test count
+   differs from the Cargo baseline); or (when the `cargo` baseline passes
    every non-canary step, i.e. the corpus has no failing or flaky tests) a cold run
    that fails.
 2. **B** = the eligible baseline or Cargo-native tool with the lowest replay-fresh
@@ -145,9 +157,9 @@ For each corpus:
 If the two corpora disagree, the overall verdict is "mixed" and both are reported.
 The threshold and the metric were fixed before any full run.
 
-**Documented exclusions.** The automatic rules cannot tell when a tool ran
-*different* tests (for example, a generated build config under which some test
-targets do not build, which then finish instantly). Such cases go in
+**Documented exclusions.** The automatic test-set check covers targets that did
+not build; it cannot see every way a tool can run *different* tests (for example,
+tests that build but fail instantly because a fixture is missing). Such cases go in
 `results/<run>/exclusions.toml` with the reason. The report prints every
 exclusion, and also shows the verdict without them and each hermetic tool's gap
 whether or not it was eligible, so no exclusion can hide a result.

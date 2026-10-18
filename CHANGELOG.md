@@ -15,6 +15,23 @@ commit it used, so any result can be traced to the exact state described here.
 - Decision rule: hermetic tool must beat the best Cargo-native tool by more than
   20% on replay-fresh total time to justify building a new tool.
 
+## After run 2026-10-15
+
+Setup fixes found by run 2026-10-15; every tool is re-run on one harness commit.
+- moon: each crate's test task runs `cargo nextest run --workspace -E 'package(=<crate>)'`,
+  so all tasks share one build; `-p <crate>` re-resolved features per crate and
+  rebuilt shared dependencies task after task.
+- Bazel: explicit third-party deps for workspace members that share a name with a
+  crates.io crate (crate_universe drops them); real `CARGO_MANIFEST_DIR` for every
+  crate; tests keep `RUSTUP_HOME` and `CARGO_HOME`; the test launcher handles bin
+  names with `-` and sets `CARGO_WORKSPACE_DIR` for expect-test.
+- Buck2: `include*!` fixups are written per vendored version.
+- Test scope: corpus `skip_binaries`; ruff skips `ruff_annotate_snippets/examples`
+  and `ty_server/e2e`; rust-analyzer skips `xtask`, `smol_str/tidy`,
+  `test_format_document*` and `self_hosting_parsing`, for every tool.
+- Decision rule: a tool that runs a different test set on the cold run is not
+  eligible (checked automatically; replaces the hand-written exclusion).
+
 ## Run 2026-10-15 (first published run)
 
 Fixes made during the run (affected pairs re-run from scratch, see the run's NOTES.md):

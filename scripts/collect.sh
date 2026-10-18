@@ -19,6 +19,11 @@ mkdir -p "$dest"
 src="results/$RUN_ID"
 if [ "$NAME" = all ]; then
   (cd "$src" && find . -type f -print0) > "$tmp/.files"
+elif [[ "$NAME" == *--* ]]; then
+  # <tool>--<corpus>: one (corpus, tool) pair.
+  tool=${NAME%%--*}; corpus=${NAME#*--}
+  (cd "$src" && find . -type f -path "./$corpus/$tool/*" -print0
+   find . -maxdepth 1 -type f -name "job-$tool-$corpus.log" -print0) > "$tmp/.files"
 else
   (cd "$src" && find . -type f -path "*/$NAME/*" -print0; find . -maxdepth 1 -type f -name "job-$NAME.log" -print0) > "$tmp/.files"
 fi
@@ -31,7 +36,11 @@ while IFS= read -r -d '' f; do
 done < "$tmp/.files"
 for f in results/"$RUN_ID".*.console.log; do
   [ -e "$f" ] || continue
-  case "$NAME" in all) ;; *) [[ "$f" == *".$NAME.console.log" ]] || continue ;; esac
+  case "$NAME" in
+    all) ;;
+    *--*) [[ "$f" == *".${NAME#*--}.${NAME%%--*}.console.log" ]] || continue ;;
+    *) [[ "$f" == *".$NAME.console.log" ]] || continue ;;
+  esac
   gzip -9 -c "$f" > "$dest/$(basename "$f").gz"
 done
 rm -f "$tmp/.files"
